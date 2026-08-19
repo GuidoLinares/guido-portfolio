@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "brand": "Guido Linares",
+    "skipToContent": "Saltar al contenido",
+    "home": "Inicio",
+    "work": "Trabajo",
+    "database": "Bases de datos",
+    "contact": "Contacto",
+    "languageLabel": "Idioma"
+  },
+  "hero": {
+    "name": "Guido Linares",
+    "role": "Desarrollador full-stack",
+    "positioning": "Backend, base de datos y las decisiones que sostienen ambos.",
+    "sequence": {
+      "write": "write",
+      "readBack": "read back",
+      "mismatch": "mismatch",
+      "retry": "retry",
+      "commit": "commit"
+    }
+  }
+}

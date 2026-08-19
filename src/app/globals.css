@@ -1,26 +1,305 @@
 @import "tailwindcss";
 
+/* ============================================================
+   Tokens — fuente de verdad: CLAUDE.md § Tokens.
+   No agregar valores acá sin proponerlos primero.
+   ============================================================ */
+
+@theme {
+  /* Color */
+  --color-ink:        #04060B;  /* base, casi negro */
+  --color-night:      #0B1F3A;  /* azul noche */
+  --color-night-lift: #14335F;  /* elevación */
+  --color-signal:     #4DA3FF;  /* acento, uso escaso */
+  --color-text:       #E8EDF5;
+  --color-text-muted: #8A97AD;
+  --color-rail:       #6B7C96;  /* mono de anotación */
+  --color-hairline:   rgb(255 255 255 / 0.07);
+
+  /* Tipografía */
+  --font-display: var(--font-bricolage);  /* Bricolage Grotesque, variable */
+  --font-body:    var(--font-public);     /* Public Sans */
+  --font-mono:    var(--font-plex);       /* IBM Plex Mono */
+
+  /* Escala */
+  --text-hero:  clamp(2.75rem, 7vw, 5.5rem);
+  --text-h2:    clamp(1.75rem, 3.5vw, 2.75rem);
+  --text-h3:    1.375rem;
+  --text-body:  1.0625rem;
+  --text-meta:  0.8125rem;   /* siempre en mono */
+
+  /* Ritmo vertical */
+  --space-section: clamp(6rem, 14vh, 10rem);
+  --space-block:   3rem;
+}
+
+/* ------------------------------------------------------------
+   Texturas. No son tokens de diseño: es el ruido procedural que
+   necesita el overlay de grano. Se mantiene fuera de @theme para
+   que no genere utilidades ni se confunda con la paleta.
+   ------------------------------------------------------------ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --texture-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ============================================================
+   Base
+   ============================================================ */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    line-height: 1.6;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  /* Foco visible en todo control interactivo (CLAUDE.md § Calidad mínima).
+     Es el único uso de --color-signal que puede repetirse: nunca hay más de
+     un elemento enfocado por viewport. */
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background-color: var(--color-night-lift);
+    color: var(--color-text);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ============================================================
+   Utilidades
+   ============================================================ */
+
+/* Overlay de grano al 3%. Va sobre todo fondo con degradé largo: evita el
+   banding en paneles de 8 bits. El host tiene que establecer bloque
+   contenedor (agregarle `relative`), la utilidad no lo fuerza para no
+   romper hosts ya posicionados. */
+@utility grain {
+  isolation: isolate;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: var(--texture-grain);
+    background-repeat: repeat;
+    background-size: 140px 140px;
+  }
+}
+
+/* ============================================================
+   Movimientos permitidos — cuatro, no más (CLAUDE.md § Dirección visual).
+
+   1. Secuencia del hero al cargar   -> [data-motion="hero"] .hero-step
+   2. Reveal por scroll              -> .reveal
+   3. Glow del borde de card         -> .card-glow
+   4. Hairline de progreso de scroll -> .scroll-hairline
+
+   Los movimientos 2, 3 y 4 son scroll/pointer-driven: no llevan duración
+   propia. El único que necesita reloj es la secuencia del hero, y su timing
+   está declarado abajo, fuera de @theme.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. Secuencia del hero: write -> read back -> mismatch -> retry -> commit.
+   Una línea por paso, el activo en --color-signal, los anteriores en
+   --color-rail. Corre una vez al cargar y se detiene en commit.
+
+   CSS puro, sin librería de animación: el LCP del hero es el nombre en
+   display y no espera hidratación (CLAUDE.md § Calidad mínima).
+   ------------------------------------------------------------ */
+
+[data-motion="hero"] {
+  /* Propuesta de timing, no tokens: viven acá y no entran en @theme. */
+  --hero-step-interval: 360ms;
+  --hero-step-in: 160ms;
+}
+
+@keyframes hero-step-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* El paso deja de ser el activo justo cuando aparece el siguiente: con
+   steps(1, end) el color salta, no se interpola a un azul intermedio. */
+@keyframes hero-step-settle {
+  from {
+    color: var(--color-signal);
+  }
+  to {
+    color: var(--color-rail);
+  }
+}
+
+.hero-step {
+  /* --hero-step-index lo publica el componente, uno por línea. */
+  --hero-step-delay: calc(var(--hero-step-index, 0) * var(--hero-step-interval));
+
+  opacity: 0;
+  /* Estado de reposo = paso ya ejecutado. Es también el estado que queda con
+     prefers-reduced-motion, donde la animación no corre. */
+  color: var(--color-rail);
+  animation:
+    hero-step-in var(--hero-step-in) linear var(--hero-step-delay) forwards,
+    hero-step-settle var(--hero-step-interval) steps(1, end) var(--hero-step-delay) forwards;
+}
+
+/* commit es el último paso activo y queda ahí: no se apaga a rail. Es el único
+   elemento con --color-signal en el viewport del hero. */
+.hero-step--last {
+  color: var(--color-signal);
+  animation: hero-step-in var(--hero-step-in) linear var(--hero-step-delay) forwards;
+}
+
+/* 2. Reveal por scroll: blur -> nítido, translateY de 12px máximo. */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+.reveal {
+  animation: reveal linear both;
+  animation-timeline: view();
+  animation-range: entry 10% cover 30%;
+}
+
+/* Sin scroll-driven animations el contenido queda en su estado final. */
+@supports not (animation-timeline: view()) {
+  .reveal {
+    animation: none;
+  }
+}
+
+/* 3. Glow del borde de card siguiendo el puntero. El componente publica
+      --glow-x / --glow-y; el gradiente sigue al puntero sin transición, así
+      que tampoco hay timing acá. */
+.card-glow {
+  position: relative;
+  isolation: isolate;
+}
+
+.card-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  opacity: 0;
+  background: radial-gradient(
+    circle 16rem at var(--glow-x, 50%) var(--glow-y, 50%),
+    var(--color-night-lift),
+    transparent 60%
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+.card-glow:hover::before,
+.card-glow:focus-within::before {
+  opacity: 1;
+}
+
+/* 4. Hairline de progreso de scroll, 1px, en --color-signal. */
+@keyframes scroll-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.scroll-hairline {
+  display: none;
+  transform-origin: 0 50%;
+}
+
+/* Solo existe si el browser puede animarlo con el scroll: un hairline
+   estático al 100% no informa nada. */
+@supports (animation-timeline: scroll(root block)) {
+  .scroll-hairline {
+    display: block;
+    animation: scroll-progress linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+
+/* ============================================================
+   prefers-reduced-motion: los cuatro movimientos se desactivan y el
+   contenido aparece en su estado final.
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  /* 1. Secuencia del hero: las cinco líneas aparecen ya en su estado final.
+        Sin animación, cada .hero-step cae a su color de reposo: los cuatro
+        primeros en --color-rail y commit en --color-signal. */
+  [data-motion="hero"],
+  [data-motion="hero"] * {
+    animation: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+
+  /* 2. Reveal por scroll: estado final. */
+  .reveal {
+    animation: none !important;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+
+  /* 3. Glow del borde de card: no se dibuja. */
+  .card-glow::before {
+    display: none;
+  }
+
+  /* 4. Hairline de progreso: sin animación no comunica progreso, se retira. */
+  .scroll-hairline {
+    display: none;
+  }
+
+  /* Cualquier animación o transición residual. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
