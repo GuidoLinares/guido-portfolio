@@ -75,7 +75,9 @@
           "SQL Server (T-SQL)",
           "Next.js",
           "Angular",
-          "Prisma"
+          "Prisma",
+          "Zod",
+          "Tailwind CSS"
         ]
       },
       {
@@ -83,11 +85,14 @@
         "items": [
           "Python",
           "FastAPI",
+          "Uvicorn",
+          "Pandas",
+          "Odoo (XML-RPC)",
           "Arquitectura hexagonal",
           "DDD",
           "Redis",
-          "BullMQ",
           "Docker",
+          "AWS (ECS Fargate, S3, ECR)",
           "Claude API",
           "Git"
         ]
@@ -99,12 +104,17 @@
           "gRPC",
           "Protocol Buffers",
           "Event sourcing",
+          "NATS",
+          "Asynq",
           "Concurrencia con channels",
-          "Arquitectura event-driven"
+          "Event-driven"
         ]
       }
     ],
-    "note": "Los niveles reflejan uso real, no familiaridad. Lo del tercer nivel lo construí y lo dejé de usar por decisión de arquitectura, no por falta de manejo."
+    "notes": [
+      "Integración con ERPs de terceros: automatización de comunicación entre portales y aplicaciones externas contra Odoo, vía XML-RPC.",
+      "Los niveles reflejan uso real, no familiaridad. Lo del tercer nivel lo construí y lo dejé de usar por decisión de arquitectura, no por falta de manejo."
+    ]
   },
   "about": {
     "title": "Sobre mí",

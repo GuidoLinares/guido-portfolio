@@ -1,5 +1,7 @@
 /** Datos de contacto del sitio. Públicos a propósito. */
 export const SITE = {
+  /** Dominio de producción. Única fuente de verdad: nada de URLs a mano. */
+  url: "https://guidolinares.vercel.app",
   email: "guidolinaress@gmail.com",
   github: "https://github.com/GuidoLinares",
   /**

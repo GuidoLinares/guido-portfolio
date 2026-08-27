@@ -4,7 +4,12 @@ import type { ReactNode } from "react";
 
 import { LocaleToggle } from "@/components/ui/LocaleToggle";
 import { ScrollHairline } from "@/components/ui/ScrollHairline";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+
+import { SITE } from "@/content/site";
 import { DEFAULT_LOCALE, LOCALES, getDictionary, isLocale } from "@/lib/i18n";
+import { OG_LOCALE } from "@/lib/locales";
 
 import "../globals.css";
 
@@ -43,9 +48,15 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
   const resolved = isLocale(locale) ? locale : DEFAULT_LOCALE;
   const dictionary = getDictionary(resolved);
 
+  const title = `${dictionary.nav.brand} — ${dictionary.hero.role}`;
+
   return {
+    // Única fuente de verdad del dominio: SITE.url. Con esto, todas las URLs
+    // relativas de metadata se resuelven absolutas.
+    metadataBase: new URL(SITE.url),
     title: {
-      default: `${dictionary.nav.brand} — ${dictionary.hero.role}`,
+      // El default no recibe el template: es el title de la home.
+      default: title,
       template: `%s — ${dictionary.nav.brand}`,
     },
     description: dictionary.hero.positioning,
@@ -55,6 +66,19 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
         ...LOCALES.map((item) => [item, `/${item}`]),
         ["x-default", `/${DEFAULT_LOCALE}`],
       ]),
+    },
+    openGraph: {
+      type: "website",
+      siteName: dictionary.nav.brand,
+      locale: OG_LOCALE[resolved],
+      url: `/${resolved}`,
+      title,
+      description: dictionary.hero.positioning,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: dictionary.hero.positioning,
     },
   };
 }
@@ -89,7 +113,13 @@ export default async function LocaleLayout({
           </div>
         </header>
 
-        <main id="content">{children}</main>
+        {/* tabIndex -1: sin esto el foco no aterriza acá al usar el skip link. */}
+        <main id="content" tabIndex={-1}>
+          {children}
+        </main>
+
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

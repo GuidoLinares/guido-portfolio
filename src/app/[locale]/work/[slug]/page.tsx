@@ -8,6 +8,7 @@ import { PROJECTS, getProject } from "@/content/projects";
 import type { Project } from "@/content/projects";
 import { DEFAULT_LOCALE, LOCALES, getDictionary, isLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
+import { OG_LOCALE } from "@/lib/locales";
 import { hasWorkEntry, loadWorkBody } from "@/lib/mdx";
 
 type WorkParams = {
@@ -34,17 +35,31 @@ export async function generateMetadata({ params }: WorkParams): Promise<Metadata
     return {};
   }
 
+  // Solo los locales con archivo: apuntar un hreflang a una ruta que no existe
+  // es peor que no declararlo.
+  const traducidos = LOCALES.filter((item) => hasWorkEntry(slug, item));
+  const url = `/${locale}/work/${slug}`;
+
   return {
     title: project.title,
     description: project.tagline,
     alternates: {
-      canonical: `/${locale}/work/${slug}`,
+      canonical: url,
       languages: Object.fromEntries(
-        LOCALES.filter((item) => hasWorkEntry(slug, item)).map((item) => [
-          item,
-          `/${item}/work/${slug}`,
-        ]),
+        traducidos.map((item) => [item, `/${item}/work/${slug}`]),
       ),
+    },
+    openGraph: {
+      type: "article",
+      url,
+      title: project.title,
+      description: project.tagline,
+      locale: OG_LOCALE[locale],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: project.title,
+      description: project.tagline,
     },
   };
 }
@@ -121,10 +136,13 @@ export default async function WorkPage({ params }: WorkParams) {
           ]}
         />
 
-        {/* Medida legible: la columna corta en ~68 caracteres, no en el grid.
+        {/* min-w-0: un grid item no baja de su min-content, y el bloque de código
+            se lo llevaba a 674px desbordando la página hasta los ~1000px de
+            viewport. Con esto el pre vuelve a scrollear adentro, como se diseñó.
+            Medida legible: la columna corta en ~68 caracteres, no en el grid.
             reveal-blocks anima cada bloque de nivel superior del MDX por
             separado, con su propia view() timeline. */}
-        <div className="reveal-blocks max-w-[68ch]">
+        <div className="reveal-blocks max-w-[68ch] min-w-0">
           <Body />
         </div>
       </div>

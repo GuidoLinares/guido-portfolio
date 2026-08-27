@@ -6,7 +6,9 @@ const nextConfig: NextConfig = {
   // tracing no puede inferir esas rutas (se arman por slug y locale), así que
   // los MDX se incluyen explícitamente en la salida.
   outputFileTracingIncludes: {
-    "/**": ["./src/content/work/**/*.mdx"],
+    // Los MDX se leen con fs para derivar la metadata, y las fuentes de las OG
+    // images también. Ninguna de las dos rutas la puede inferir el tracing.
+    "/**": ["./src/content/work/**/*.mdx", "./src/assets/fonts/*"],
   },
 };
 

@@ -1,6 +1,8 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentPropsWithoutRef } from "react";
 
+import { ActoI, ActoII } from "@/components/diagrams/Topologias";
+
 /**
  * Mapeo de los elementos de MDX al sistema de tokens. Es el default global de
  * @next/mdx: lo resuelve por el alias `next-mdx-import-source-file`, así que
@@ -70,6 +72,10 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
         {...props}
       />
     ),
+
+    // Diagramas disponibles en cualquier MDX sin importarlos.
+    ActoI,
+    ActoII,
 
     ...components,
   };

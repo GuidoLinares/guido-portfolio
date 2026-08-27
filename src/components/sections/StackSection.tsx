@@ -1,3 +1,5 @@
+import { Fragment } from "react";
+
 import type { Dictionary } from "@/lib/i18n";
 
 type StackSectionProps = {
@@ -20,12 +22,28 @@ export function StackSection({ content }: StackSectionProps) {
             <h3 className="font-mono text-meta uppercase tracking-wider text-rail">
               {level.label}
             </h3>
-            <p className="mt-3 font-mono text-meta text-rail">{level.items.join(" · ")}</p>
+            {/* Cada entrada va en un span nowrap: la línea envuelve en los puntos
+                medios y no parte un nombre al medio —"AWS (ECS Fargate, S3, ECR)"
+                era el caso— sin meter espacios duros en el diccionario. */}
+            <p className="mt-3 font-mono text-meta text-rail">
+              {level.items.map((item, index) => (
+                <Fragment key={item}>
+                  {index > 0 ? " · " : null}
+                  <span className="whitespace-nowrap">{item}</span>
+                </Fragment>
+              ))}
+            </p>
           </div>
         ))}
       </div>
 
-      <p className="mt-[var(--space-block)] max-w-2xl text-text-muted">{content.note}</p>
+      <div className="mt-[var(--space-block)] flex max-w-2xl flex-col gap-4">
+        {content.notes.map((note) => (
+          <p key={note} className="text-text-muted">
+            {note}
+          </p>
+        ))}
+      </div>
     </section>
   );
 }

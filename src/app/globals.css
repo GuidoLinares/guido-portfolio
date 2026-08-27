@@ -110,6 +110,31 @@
   }
 }
 
+/* Tratamiento de la foto: baja la saturación al 70% y la corre hacia
+   --color-night con un overlay en modo `color`, que toma tono y saturación de la
+   capa de arriba y luminosidad de la de abajo. Así la foto convive con la paleta
+   sin decolorarse. Sin glow, sin sombra, sin borde de degradé.
+
+   La opacidad del tinte es el único valor a ojo de este bloque: subila o bajala
+   para más o menos tinte. */
+@utility photo-tint {
+  isolation: isolate;
+
+  & img {
+    filter: saturate(0.7);
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-color: var(--color-night);
+    mix-blend-mode: color;
+    opacity: 0.22;
+  }
+}
+
 /* ============================================================
    Movimientos permitidos — cuatro, no más (CLAUDE.md § Dirección visual).
 
