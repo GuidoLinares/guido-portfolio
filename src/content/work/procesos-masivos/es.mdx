@@ -1,0 +1,155 @@
+---
+slug: "procesos-masivos"
+title: "Cargas masivas con diagnóstico asistido"
+tagline: "Doce procesos de carga por lotes contra un ERP sin rollback, con un asistente que explica los errores en lenguaje operativo."
+company: "Grupo ROISA"
+scope: "Proyecto interno"
+role: "Diseño y desarrollo end-to-end"
+period: "Mar 2026 — presente"
+status: "produccion"
+stack:
+  - "Next.js 16"
+  - "React 19"
+  - "TypeScript"
+  - "SQL Server"
+  - "Zod"
+  - "Claude API"
+  - "Docker"
+metrics:
+  - label: "procesos de dominio"
+    value: "12"
+  - label: "server actions"
+    value: "37"
+  - label: "líneas TypeScript"
+    value: "21.100"
+  - label: "commits en 5 meses"
+    value: "170"
+order: 2
+---
+
+## Contexto
+
+Aplicación interna de cargas masivas. Un operador sube una planilla, el sistema la valida
+contra los catálogos de la base y ejecuta los procedimientos almacenados de un ERP por
+lotes. Doce procesos distintos sobre catálogos, contratos y bases de titulares.
+
+## Restricciones que definieron el diseño
+
+- **El ERP no se puede modificar.** Sus procedimientos almacenados son el único punto de
+  entrada y no aceptan cambios de firma.
+- **No hay rollback operativo.** Lo que entra a la base, entró.
+- Sin colas ni workers: un balanceador con timeout de sesenta segundos delante de una
+  única instancia.
+- Los operadores no son técnicos. Un error de base sin traducir es un ticket.
+
+## Decisiones
+
+### El código calcula, el modelo solo explica
+
+El uso obvio de un modelo de lenguaje acá sería mandarle el log de errores y pedirle un
+resumen. Eso es caro y alucina conteos.
+
+El diseño invierte el orden. Los errores de los doce procesos se aplanan a una forma
+canónica, se les calcula una firma reemplazando toda secuencia numérica por un marcador, y
+se agrupan por tipo, hoja, campo y firma. **Cinco mil filas con el mismo error son un grupo
+con una cantidad**.
+
+La consecuencia es la parte importante: **el payload escala con la cantidad de causas
+distintas — típicamente menos de quince — no con la cantidad de filas**. Una planilla de
+cinco mil filas mal formateadas cuesta lo mismo que una de cincuenta.
+
+Cuatro controles sobre la salida:
+
+- **Salida estructurada con schema.** El prompt prohíbe explícitamente producir números:
+  los conteos ya los tiene el código.
+- **Validación determinística contra alucinación de referencias.** Al volver, se descartan
+  las explicaciones cuyo identificador de grupo no esté entre los enviados.
+- **Enmascarado de datos personales antes del prompt.** Los identificadores conservan los
+  últimos dígitos y el resto se reemplaza. Los registros válidos nunca salen del navegador.
+- **Si algún grupo excedió el tope, viaja el conteo agregado**, para que el diagnóstico no
+  mienta por omisión.
+
+El prompt prohíbe jerga técnica y traduce con mapeos concretos: una violación de clave
+foránea se convierte en "el plan indicado no existe para esta entidad". El campo a corregir
+apunta a la columna de la planilla, no a la tabla. Y se genera un párrafo listo para
+reenviarle al área que armó el archivo, con las cantidades por causa.
+
+**Postura de fallo:** el asistente es un plus, nunca un bloqueante. Sin credencial, ante
+timeout o límite de tasa, la función no lanza — devuelve un fallo controlado, registra el
+error técnico y la carga sigue intacta.
+
+**Aislamiento del proveedor:** un único archivo importa el SDK y expone una firma genérica
+de generación estructurada. Cambiar de proveedor toca un archivo.
+
+### Savepoint por fila con confirmación parcial
+
+Una planilla de cinco mil filas con tres filas malas tiene dos soluciones obvias, y las dos
+son malas: transacción atómica por lote (tres filas tiran abajo cinco mil) o autocommit por
+fila (se pierde toda atomicidad).
+
+La implementación abre una transacción por lote y emite un savepoint antes de cada fila. Si
+el procedimiento falla, revierte solo esa fila y el lote continúa. Al cerrar, confirma si
+hubo al menos un éxito.
+
+El detalle que solo se aprende en producción: **el rollback al savepoint va envuelto en su
+propio manejo de error**. Si el fallo condenó la transacción entera —cosa que el motor hace
+en determinados casos— el rollback parcial también falla, y ahí se degrada al rollback
+global en lugar de propagar la excepción.
+
+Resultado: atomicidad de fila con agrupamiento de lote, y reporte de error contra el número
+de fila de la planilla original.
+
+```ts
+// El nombre del savepoint se construye desde el índice del iterador, no desde
+// datos de entrada: no hay superficie de inyección.
+const savepoint = `sp_fila_${indice}`;
+await new sql.Request(transaction).query(`SAVE TRANSACTION ${savepoint}`);
+try {
+  const request = new sql.Request(transaction);
+  mapearParametros(registro, request);
+  await request.execute(nombreSp);
+  resultado.exitosos++;
+} catch (error) {
+  try {
+    await new sql.Request(transaction).query(`ROLLBACK TRANSACTION ${savepoint}`);
+  } catch {
+    // Transacción irrecuperable: la revierte el cierre global.
+  }
+  resultado.fallidos++;
+  resultado.errores.push({ fila: indice + 1, error: (error as Error).message });
+}
+```
+
+### El particionado vive en el cliente
+
+Sin cola de trabajos y con un balanceador que corta a los sesenta segundos, el navegador
+parte el archivo y llama al servidor N veces.
+
+El tamaño de lote se elige **por costo del procedimiento almacenado**: diez cuando hace
+trabajo sincrónico caro, cincuenta cuando el techo es el timeout, doscientos como estándar,
+y cinco mil cuando el lote entero entra en un parámetro de tipo tabla y es una sola
+ejecución.
+
+Cada lote es un request corto e independiente: el progreso es observable y un lote caído no
+arrastra al resto.
+
+**El trade-off:** la lógica de particionado queda en la capa de presentación y cada proceso
+nuevo obliga a declarar su tamaño. Se aceptó porque la alternativa —introducir una cola y su
+infraestructura— no se justificaba para el volumen real.
+
+### Fechas por componentes UTC en los dos lados
+
+El driver entrega las fechas de tipo corto como valores cuyos componentes UTC son los datos
+guardados. El parser de planillas devuelve medianoche UTC para seriales, pero medianoche
+**local** para el formato de día, mes y año. La mezcla produce corrimiento de un día.
+
+La regla quedó codificada y documentada: extraer año, mes y día en UTC en ambos lados al
+comparar, y normalizar a medianoche UTC exacta al insertar fechas que forman parte de una
+clave, para que la operación de upsert actualice en lugar de duplicar.
+
+## Aprendizaje
+
+Cuando un modelo de lenguaje entra en un flujo de datos, la pregunta útil no es qué puede
+generar sino **qué no debe generar**. Dejar los conteos del lado determinístico y limitar al
+modelo a la capa explicativa hizo el diagnóstico más barato, más rápido y sobre todo
+confiable.

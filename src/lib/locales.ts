@@ -21,6 +21,12 @@ export const LOCALE_LABEL: Record<Locale, string> = {
   en: "EN",
 };
 
+/** Formato que espera Open Graph para el locale. */
+export const OG_LOCALE: Record<Locale, string> = {
+  es: "es_AR",
+  en: "en_US",
+};
+
 export function isLocale(value: string | undefined | null): value is Locale {
   return typeof value === "string" && (LOCALES as readonly string[]).includes(value);
 }
