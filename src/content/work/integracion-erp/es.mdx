@@ -1,0 +1,181 @@
+---
+slug: "integracion-erp"
+title: "Servicio de integración contable"
+tagline: "Carga de comprobantes entre dos sistemas contra un ERP que no ofrece transacciones."
+company: "Grupo ROISA"
+scope: "Proyecto interno"
+role: "Diseño y desarrollo end-to-end"
+period: "Ago 2026 — presente"
+status: "desarrollo"
+stack:
+  - "Python 3.12"
+  - "FastAPI"
+  - "Uvicorn"
+  - "Pydantic v2"
+  - "XML-RPC"
+  - "ECS Fargate"
+metrics:
+  - label: "endpoints"
+    value: "4"
+  - label: "modelos del ERP"
+    value: "11"
+  - label: "dependencias externas"
+    value: "6"
+  - label: "estado persistente"
+    value: "0"
+order: 3
+---
+
+## Contexto
+
+Servicio que toma comprobantes de compra desde un CRM y los carga en un ERP contable,
+reconciliando bases imponibles, impuesto proporcional y percepciones. Siempre en estado
+borrador: la confirmación es humana.
+
+## La restricción que define todo
+
+El ERP se accede por XML-RPC y **no ofrece transacciones**. El asiento se crea y después se
+ajusta en varios pasos, cada uno de los cuales puede fallar — o ser revertido por el propio
+recálculo del ERP. No hay atomicidad disponible.
+
+Casi todas las decisiones del servicio son consecuencia de eso.
+
+## Decisiones
+
+### Nunca confiar en el resultado de una escritura
+
+Las percepciones se modelan en el ERP como impuestos de importe fijo que entran con un valor
+provisorio. Escribir el balance del impuesto proporcional **dispara un recálculo del asiento
+que devuelve las percepciones a su valor provisorio**.
+
+El diseño: orden forzado —primero el proporcional, después los fijos— y una segunda pasada
+que **relee el estado desde el ERP** en lugar de asumir que la escritura hizo lo que pedía.
+Si la segunda pasada sigue encontrando diferencias, se aborta.
+
+```python
+def _escribir_montos_fijos():
+    """Fuerza el importe de cada impuesto de monto fijo. Devuelve los que no
+    quedaron bien, releyendo desde el ERP: no confía en la escritura."""
+    lineas = leer_lineas_del_asiento(entry_id)
+    actual = {x["tax_line_id"][0]: x for x in lineas if x.get("tax_line_id")}
+    pendientes = []
+    for tax_id, monto in sorted(montos_fijos.items()):
+        linea = actual.get(tax_id)
+        if not linea:
+            raise RuntimeError(f"El ERP no generó línea para el impuesto {tax_id}")
+        if abs(linea["balance"] - monto) > TOLERANCIA:
+            escribir_balance(linea["id"], monto)
+            pendientes.append((tax_id, monto))
+    return pendientes
+
+# El proporcional va PRIMERO: su escritura dispara el recálculo que pisa a los
+# fijos. Después se verifica releyendo, y se reintenta una sola vez.
+if montos_fijos:
+    _escribir_montos_fijos()
+    if _escribir_montos_fijos():
+        raise RuntimeError("El ERP revierte los importes: revisar el asiento.")
+```
+
+El ciclo se cierra con una verificación final: se releen todas las líneas y se comprueba que
+la suma de balances sea cero y que el total del ERP coincida con el esperado dentro de
+tolerancia. **El sistema nunca da por buena su propia escritura.**
+
+### Compensación explícita en lugar de atomicidad fingida
+
+Sin transacción disponible, la alternativa honesta es compensar. Todo el post-procesamiento
+va dentro de un bloque cuyo manejo de error **borra el asiento recién creado** y marca el
+registro como revertido. El estado queda igual que antes del intento, y un reintento parte de
+cero.
+
+Dos refinamientos hacen la diferencia:
+
+- Si el borrado de compensación **también** falla, el estado pasa a uno distinto y
+  explícito, no a un fallo genérico. Alguien tiene que mirarlo, y el sistema lo dice.
+- **Excepción deliberada a la regla:** el adjunto no puede tumbar la carga. El comprobante ya
+  es contablemente correcto y el archivo es comodidad, así que se degrada a adjuntar el
+  vínculo.
+
+Distinguir qué fallo puede degradarse de cuál obliga a revertir es la parte que requiere
+criterio, y no se puede resolver de forma genérica.
+
+### Fail-closed en toda la configuración
+
+Una función de resolución corre **antes** de cualquier carga y acumula todos los problemas en
+una lista en lugar de fallar en el primero: impuestos inexistentes o archivados, impuestos de
+otra compañía, diario ambiguo, producto archivado, plan de imputación ausente. El operador
+recibe la lista completa, no un error por vez.
+
+Y la regla central: **un embudo sin perfil configurado nunca cae a un valor por defecto**.
+Imputar un comprobante con la configuración de otro embudo es peor que no cargarlo. Las
+reglas contables no se heredan por omisión aunque sea repetitivo, porque heredar en silencio
+algo que decide a qué cuenta va la plata es exactamente cómo se cargan comprobantes mal sin
+que nadie lo note.
+
+Cuatro refuerzos:
+
+- **El embudo lo determina el registro de origen, no el llamador.** Nadie puede mandar el
+  embudo equivocado, ni por error ni a propósito.
+- **Un test estructural valida en integración continua que todo perfil declare las claves
+  contables obligatorias.** Si alguien agrega un embudo y olvida una, falla el gate en lugar
+  de que el servicio asuma un valor.
+- **Un perfil incompleto declara su motivo** y rechaza sus registros con un mensaje
+  accionable, hasta que se corrija el origen.
+- **Las alícuotas nunca se asumen.** Un valor desconocido es un error, no un default.
+
+### Idempotencia en tres capas
+
+1. **Deduplicación intra-lote** por par de identificador fiscal y número de comprobante,
+   antes de tocar nada.
+2. **Detección de carga previa en el ERP**, filtrando por tipo, compañía, proveedor, tipo de
+   documento y número. El filtro completo importa: el número de comprobante pertenece a la
+   numeración del emisor, así que filtrar solo por número omitiría comprobantes legítimos de
+   otros proveedores.
+3. **Reintento acotado con verificación**: dos pasadas como máximo, cada una releyendo el
+   estado real desde el ERP.
+
+Sumado al fallo compensado, un reintento del webhook es inofensivo.
+
+### Las URLs de adjunto son datos externos
+
+Las URLs de descarga llegan desde el CRM, o sea que son entrada no confiable. La política
+está centralizada en un módulo:
+
+- Solo HTTPS, con el host en lista blanca.
+- Se resuelve el DNS y se rechaza todo lo que apunte a rango privado, loopback, link-local,
+  reservado o multicast — incluido el endpoint de metadata del proveedor cloud, que en un
+  contenedor administrado entrega credenciales del rol de ejecución.
+- **Cliente HTTP propio sin manejo de redirecciones**, porque una redirección puede llevar a
+  un destino interno que la validación inicial ya aprobó.
+- El contenido se valida por sus bytes de firma, no por el encabezado de tipo declarado. Si
+  llega HTML, el mensaje de error pregunta si el recurso pide autenticación, en lugar de
+  fallar de forma opaca.
+
+Y una decisión revertida y documentada: la lista blanca de direcciones IP se eliminó del
+código, porque detrás de un balanceador la dirección visible es la del balanceador y no la
+del cliente. Daba una falsa sensación de defensa; el control de origen se movió a la capa de
+red, donde sí funciona.
+
+### Superficie de dependencias mínima
+
+Sin ORM, sin driver de base, sin base de datos propia. Sin cliente HTTP de terceros ni SDK
+del CRM: el protocolo remoto y las peticiones salientes usan biblioteca estándar. **Seis
+dependencias en total.**
+
+Menos superficie de dependencias es menos superficie de ataque y de mantenimiento. En un
+servicio que escribe asientos contables, ese trade-off cierra fácil.
+
+### Arquitectura
+
+Ports and adapters. El núcleo —parseo de importes y validación de dígito verificador,
+reconciliación de bases más impuesto proporcional más percepciones contra el total— no
+importa nada del exterior y no hace entrada/salida.
+
+Tres bocas convergen en el mismo caso de uso: línea de comandos, carga de planilla y
+contrato JSON. Y ese contrato usa nombres de negocio, no del CRM: el día que el sistema de
+origen cambie, cambia lo que alimenta el JSON, no el servicio.
+
+## Aprendizaje
+
+Cuando el sistema destino no ofrece atomicidad, la respuesta no es simularla. Es diseñar la
+compensación como camino de primera clase, y distinguir explícitamente qué fallos pueden
+degradarse de cuáles obligan a revertir.

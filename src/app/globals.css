@@ -65,6 +65,9 @@
   h2,
   h3 {
     font-family: var(--font-display);
+    /* Sin esto heredan el 1.6 del body y el display queda con interlínea de
+       prosa. Propuesta: confirmar el valor. */
+    line-height: 1.15;
     letter-spacing: -0.03em;
     text-wrap: balance;
   }
@@ -189,48 +192,62 @@
   }
 }
 
-.reveal {
+.reveal,
+.reveal-blocks > * {
   animation: reveal linear both;
   animation-timeline: view();
-  animation-range: entry 10% cover 30%;
+  /* El rango se cierra dentro de `entry`, no en `cover`: un bloque al final del
+     documento nunca llega a cubrir el 30% del viewport y quedaría borroso para
+     siempre. `entry 70%` sí es alcanzable con el scroll en el tope. */
+  animation-range: entry 10% entry 70%;
 }
 
 /* Sin scroll-driven animations el contenido queda en su estado final. */
 @supports not (animation-timeline: view()) {
-  .reveal {
+  .reveal,
+  .reveal-blocks > * {
     animation: none;
   }
 }
 
-/* 3. Glow del borde de card siguiendo el puntero. El componente publica
-      --glow-x / --glow-y; el gradiente sigue al puntero sin transición, así
-      que tampoco hay timing acá. */
+/* 3. Glow del borde de card siguiendo el puntero.
+
+   Sin elemento absoluto extra: el borde es una capa de background pintada en
+   border-box, y el puntero solo escribe --glow-x / --glow-y. El interior va en
+   una segunda capa recortada a padding-box, así que el degradé se ve
+   únicamente en el anillo de 1px. Tampoco hay transición: el gradiente sigue
+   al puntero, no se anima solo. */
 .card-glow {
-  position: relative;
-  isolation: isolate;
+  --glow-x: 50%;
+  --glow-y: 50%;
+  /* En reposo el anillo es el hairline de siempre. */
+  --glow-color: var(--color-hairline);
+
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-ink);
 }
 
-.card-glow::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  padding: 1px;
-  border-radius: inherit;
-  opacity: 0;
-  background: radial-gradient(
-    circle 16rem at var(--glow-x, 50%) var(--glow-y, 50%),
-    var(--color-night-lift),
-    transparent 60%
-  );
-  mask:
-    linear-gradient(#000 0 0) content-box exclude,
-    linear-gradient(#000 0 0);
+/* La prueba va con colores literales a propósito: un var() dentro de @supports
+   siempre da verdadero y no probaría nada. Sin soporte de interpolación en
+   oklch queda el borde hairline plano, que es un degradado honesto a nada. */
+@supports (background: radial-gradient(circle 1rem at 0 0 in oklch, red, blue)) {
+  .card-glow {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--color-ink), var(--color-ink)) padding-box,
+      radial-gradient(
+          circle 14rem at var(--glow-x) var(--glow-y) in oklch,
+          var(--glow-color),
+          var(--color-hairline)
+        )
+        border-box;
+  }
 }
 
-.card-glow:hover::before,
-.card-glow:focus-within::before {
-  opacity: 1;
+@media (hover: hover) {
+  .card-glow:hover {
+    --glow-color: var(--color-night-lift);
+  }
 }
 
 /* 4. Hairline de progreso de scroll, 1px, en --color-signal. */
@@ -276,16 +293,21 @@
   }
 
   /* 2. Reveal por scroll: estado final. */
-  .reveal {
+  .reveal,
+  .reveal-blocks > * {
     animation: none !important;
     opacity: 1;
     filter: none;
     transform: none;
   }
 
-  /* 3. Glow del borde de card: no se dibuja. */
-  .card-glow::before {
-    display: none;
+  /* 3. Glow del borde de card: el anillo queda fijo en el hairline. El puntero
+        puede seguir escribiendo --glow-x / --glow-y, pero con los dos extremos
+        del degradé en el mismo color no hay nada que ver. El componente además
+        consulta la preferencia antes de escribir. */
+  .card-glow,
+  .card-glow:hover {
+    --glow-color: var(--color-hairline);
   }
 
   /* 4. Hairline de progreso: sin animación no comunica progreso, se retira. */

@@ -1,4 +1,13 @@
 {
+  "_pendingTranslation": {
+    "note": "PENDIENTE DE TRADUCCIÓN: las secciones listadas abajo están duplicadas del español, no traducidas.",
+    "sections": [
+      "database",
+      "stack",
+      "about",
+      "contact"
+    ]
+  },
   "nav": {
     "brand": "Guido Linares",
     "skipToContent": "Skip to content",
@@ -19,5 +28,106 @@
       "retry": "retry",
       "commit": "commit"
     }
+  },
+  "work": {
+    "status": {
+      "produccion": "In production",
+      "desarrollo": "In development"
+    },
+    "role": "Role",
+    "stack": "Stack",
+    "previous": "Previous",
+    "next": "Next",
+    "pagination": "Other case studies"
+  },
+  "database": {
+    "title": "Modelado y performance",
+    "lead": "Dos motores, dos problemas distintos: diseñar un modelo que soporte reglas que cambian, y diagnosticar uno que ya está en producción.",
+    "columns": [
+      {
+        "title": "PostgreSQL · modelado",
+        "items": [
+          "Definición de schemas, constraints e integridad referencial sobre un modelo de 62 entidades con borrado lógico.",
+          "Índices únicos parciales escritos a mano cuando el ORM no puede expresarlos.",
+          "Transacciones multi-entidad con propagación explícita del cliente a través de los ports, y timeouts calculados según el número real de round trips."
+        ]
+      },
+      {
+        "title": "SQL Server · diagnóstico",
+        "items": [
+          "Análisis de cadenas de bloqueo en producción y su causa raíz: transacciones abiertas por sesiones inactivas.",
+          "Anti-patrones de generación de identificadores que serializan la escritura.",
+          "Predicados que fuerzan recorrido completo de tabla y multiplican el alcance de los bloqueos.",
+          "Ingeniería inversa y modelado de entidades sobre un sistema legacy de más de 1.300 tablas y 5.000 procedimientos almacenados."
+        ]
+      }
+    ]
+  },
+  "stack": {
+    "title": "Stack",
+    "levels": [
+      {
+        "label": "Todos los días",
+        "items": [
+          "TypeScript",
+          "NestJS",
+          "PostgreSQL",
+          "SQL Server (T-SQL)",
+          "Next.js",
+          "Angular",
+          "Prisma"
+        ]
+      },
+      {
+        "label": "En producción",
+        "items": [
+          "Python",
+          "FastAPI",
+          "Arquitectura hexagonal",
+          "DDD",
+          "Redis",
+          "BullMQ",
+          "Docker",
+          "Claude API",
+          "Git"
+        ]
+      },
+      {
+        "label": "Explorado a fondo",
+        "items": [
+          "Go",
+          "gRPC",
+          "Protocol Buffers",
+          "Event sourcing",
+          "Concurrencia con channels",
+          "Arquitectura event-driven"
+        ]
+      }
+    ],
+    "note": "Los niveles reflejan uso real, no familiaridad. Lo del tercer nivel lo construí y lo dejé de usar por decisión de arquitectura, no por falta de manejo."
+  },
+  "about": {
+    "title": "Sobre mí",
+    "paragraphs": [
+      "Trabajo en el diseño y desarrollo de sistemas internos en Grupo ROISA, una organización con operación a escala en Buenos Aires. Mi trabajo va del backend a la base de datos: APIs en NestJS, procesos de carga masiva contra SQL Server, servicios de integración en Python, y el modelado de datos de la plataforma que reemplaza al sistema legacy de la empresa.",
+      "Estudio Ingeniería Informática en la Universidad Nacional de La Matanza, tercer año. Antes de esto me formé como técnico aeronáutico. Suena desconectado, pero en mantenimiento de aeronaves aprendí algo que uso todos los días: los procedimientos existen porque la falla es cara y no se deshace. Trabajar contra una base de producción sin rollback se parece más a eso de lo que parece.",
+      "Lo que me interesa del oficio es la parte que no se ve en una demo: por qué una transacción está delimitada donde está, qué pasa cuando el sistema de destino no ofrece atomicidad, y qué se resigna al elegir una arquitectura sobre otra."
+    ],
+    "facts": [
+      "Buenos Aires, Argentina",
+      "Ing. Informática (UNLaM)",
+      "Español nativo",
+      "Inglés C1"
+    ]
+  },
+  "contact": {
+    "title": "Contacto",
+    "lead": "Abierto a posiciones full-time y a consultoría en performance de base de datos.",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "copyHint": "Copiar el email al portapapeles",
+    "github": "GitHub",
+    "linkedin": "LinkedIn",
+    "cv": "Descargar CV"
   }
 }

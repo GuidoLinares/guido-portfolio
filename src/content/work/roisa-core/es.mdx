@@ -1,0 +1,253 @@
+---
+slug: "roisa-core"
+title: "Plataforma de gestión de coberturas"
+tagline: "Reescritura de un backend de microservicios a monolito modular, en producción en diez semanas."
+company: "Grupo ROISA"
+scope: "Proyecto interno"
+role: "Desarrollo backend, modelado de datos y decisiones de arquitectura"
+period: "Jun 2026 — presente"
+status: "produccion"
+stack:
+  - "NestJS 11"
+  - "TypeScript 5.9"
+  - "Prisma 7"
+  - "PostgreSQL"
+  - "Angular 21"
+  - "Redis"
+  - "BullMQ"
+  - "ECS Fargate"
+metrics:
+  - label: "endpoints"
+    value: "329"
+  - label: "con permiso declarado"
+    value: "97,9%"
+  - label: "modelos de datos"
+    value: "62"
+  - label: "semanas a producción"
+    value: "10"
+order: 1
+---
+
+## Contexto
+
+Backend REST y cliente web para la gestión integral de una plataforma de coberturas:
+titulares, entidades de red, catálogo de servicios, contratos, planes y directorio
+habilitado. Reemplaza un sistema legacy de más de 1.300 tablas y 5.000 procedimientos
+almacenados, con un objetivo de escala de 500.000 usuarios.
+
+## Restricciones
+
+El legacy sigue en producción y no se puede apagar durante la transición. Las reglas de
+elegibilidad varían por contrato, así que la lógica de dominio cambia seguido y necesita
+ser testeable en aislamiento. Y el plazo de negocio era corto.
+
+## Dos actos
+
+### Acto I — Microservicios en Go
+
+La primera iteración se construyó como polyrepo de servicios en Go bajo arquitectura
+hexagonal estricta: gRPC y Protobuf para la comunicación interna, event sourcing con
+commands y handlers, Redis como capa de caché, y un BFF intermedio que traducía gRPC a
+REST para el frontend.
+
+Fue donde aprendí lo que uso todos los días: concurrencia con channels, contratos
+versionados con Protobuf, y disciplina de ports and adapters sin atajos.
+
+El problema apareció medido: **el costo de desarrollo por feature no escalaba hacia
+abajo**. Un CRUD de catálogo exigía la misma infraestructura ceremonial que un proceso de
+cierre de período — agregado, commands, handlers, eventos, invalidación de caché. Se
+estaba pagando el precio de una arquitectura de escala grande en features que no la
+necesitaban.
+
+### Acto II — Reescritura como monolito modular
+
+La decisión fue **reducir la complejidad arquitectónica antes que cambiar de lenguaje**.
+No una migración incremental: un repositorio nuevo, hexagonal y DDD preservados, y event
+sourcing reservado únicamente para los agregados donde el historial inmutable es un
+requisito real del dominio.
+
+Tres consecuencias concretas:
+
+- **Un solo lenguaje de punta a punta.** El cliente ya era TypeScript. Unificarlo elimina
+  el cambio de contexto y la duplicación de contratos entre capas.
+- **El BFF se eliminó por completo.** Existía únicamente para adaptar gRPC al browser. Sin
+  gRPC, la capa dejó de tener razón de ser: una pieza entera de infraestructura fuera del
+  diagrama.
+- **Migraciones versionadas y acceso a datos tipado contra el schema**, en lugar de
+  construir la capa de persistencia a mano.
+
+**El trade-off, explícito:** se resigna el escalado independiente por servicio. Es
+aceptable porque la carga real no lo justificaba, y los límites siguen siendo reales — hay
+51 ports definidos, así que extraer un módulo mañana es implementar un adapter, no
+rediseñar el sistema.
+
+Diez semanas después: 329 endpoints en producción.
+
+## Decisiones
+
+### El catálogo de permisos se descubre del código, no se mantiene a mano
+
+En el arranque de la aplicación se recorre el registro de handlers del framework, se lee la
+metadata de permiso de cada uno junto con su ruta y método, se reconstruye el path completo
+y se hace upsert del permiso en la base.
+
+La mitad no obvia es la otra: **los permisos activos en base se comparan contra el set
+descubierto y los que ya no existen en el código se desactivan**. Sin eso, renombrar un
+recurso deja permisos huérfanos que siguen concediendo acceso, y agregar un endpoint exige
+acordarse de un insert manual.
+
+Que funciona quedó probado en producción: al renombrar un módulo entero, sus seis permisos
+anteriores quedaron desactivados solos.
+
+Dos detalles de diseño lo acompañan. El sync es idempotente y **tolerante a fallos** — un
+problema del catálogo no debe impedir que la aplicación arranque. Y es desactivable por
+configuración, lo que permite escalar a N instancias sin que todas hagan el mismo trabajo.
+
+Resultado: 322 de 329 endpoints con permiso declarado, sobre 48 recursos distintos.
+
+### Idempotencia por hash de contenido y claim atómico
+
+La clave de un trabajo de exportación no es un identificador generado: es el hash de la
+vista, el formato, el identificador de origen y su versión. Dos pedidos idénticos colapsan
+a la misma clave y el segundo devuelve el trabajo del primero en lugar de encolar un
+duplicado.
+
+La versión dentro de la clave es la parte fina: **invalida el caché automáticamente cuando
+la fuente cambia**, sin necesidad de un purge explícito.
+
+Y el encolado no se decide leyendo y después escribiendo. El claim es una sola operación
+atómica en el store: solo quien la gana encola, y quien la pierde relee y reporta el
+progreso del ganador. La carrera es imposible incluso con varias instancias en paralelo,
+**sin locks distribuidos ni tabla de trabajos**.
+
+### La transacción viaja a través de los ports
+
+El alta de una entidad de red son seis escrituras encadenadas dentro de una transacción,
+con la invariante escrita en el código: nunca debe sobrevivir un registro huérfano a un
+fallo.
+
+Tres cosas que no son evidentes:
+
+- **El cliente de transacción se propaga como parámetro opcional a través de los ports.**
+  Sin eso, las validaciones leerían con el cliente compartido y no verían las filas no
+  confirmadas de su propia transacción. El parámetro es puramente aditivo: omitirlo
+  preserva el comportamiento anterior.
+- **Las lecturas de catálogo quedan fuera de la transacción.** Un código de tipo inválido
+  no debería costar una transacción abierta.
+- **Timeout calculado, no default.** Son unos quince round trips secuenciales contra una
+  base remota: los cinco segundos por defecto del ORM harían que un alta perfectamente
+  válida devolviera un error intermitente.
+
+Y el código documenta que el orden de las validaciones es una **optimización, no un
+mecanismo de corrección** — una validación que falla tarde igual aborta la transacción, así
+que un conflicto detectado al final es tan seguro como uno detectado al principio.
+
+### Códigos de error derivados del nombre de clase
+
+Cada error de dominio es su propia clase: 111 en total. El filtro deriva un código estable
+del nombre de la clase, en lugar de mantener 111 constantes que inevitablemente derivan.
+
+Dos resguardos hacen que la técnica sea segura:
+
+- La respuesta lleva un identificador específico **y** una familia (conflicto, no
+  encontrado, validación), para que un cliente pueda ramificar por categoría sin conocer a
+  cada miembro del conjunto.
+- La derivación se valida contra un patrón antes de devolverse, **porque la técnica depende
+  de que el compilador no altere los nombres de clase**. Si algún día entra un empaquetador
+  con minificación, el cliente recibe un código desconocido en lugar de un identificador
+  basura que nunca podría matchear.
+
+El mensaje técnico está declarado explícitamente como no destinado a mostrarse: el cliente
+es dueño de cada texto que lee un operador, así que un error nuevo del backend no puede
+filtrar texto sin traducir a la interfaz.
+
+### Unicidad parcial que el ORM no puede expresar
+
+Con borrado lógico en 58 de 62 modelos, una restricción de unicidad normal quema el código
+de una fila borrada para siempre.
+
+La solución son once índices únicos parciales escritos a mano en SQL, condicionados a la
+columna de borrado. Lo interesante es el costo aceptado: esos índices no son representables
+en el schema del ORM, así que su comando de desarrollo reporta divergencia y ofrece
+resetear la base.
+
+**La respuesta no fue abandonar los índices sino prohibir el comando.** Solo se usa el de
+despliegue, ejecutado por el entrypoint del contenedor, que aborta el arranque si falla.
+
+### Nada cruza módulos por la base
+
+Cuando un módulo necesita datos de otro, define un port propio e implementa un adapter que
+habla con el servicio ajeno. **Ningún módulo accede a las tablas de otro dominio.** Es lo
+que hace que los límites sean reales y no decorativos, y es la razón por la que extraer un
+módulo sigue siendo posible.
+
+## Cliente web
+
+SPA en Angular con componentes standalone y **sin zone.js**, estado con signals, tipado
+estricto con verificación de templates. Arquitectura por slices verticales: once dominios,
+todas las rutas con carga diferida, y las páginas nunca hablan HTTP — cada slice expone sus
+servicios como única frontera y devuelve modelos de su propio dominio.
+
+El aislamiento está reforzado por el compilador, no por convención: los helpers de test
+viven bajo un alias declarado únicamente en la configuración de specs, y la configuración
+de aplicación sobreescribe los paths omitiéndolo. **El código de producción no puede
+resolver un helper de test** — no porque esté prohibido, sino porque no compila.
+
+### Sesión sin token en el cliente
+
+Los tokens viven exclusivamente como cookies HttpOnly. El interceptor solo declara el envío
+de credenciales y orquesta el reintento: el cliente nunca toca ni almacena un token.
+
+El refresh se centraliza con **tres guardas apiladas, cada una resolviendo un problema
+distinto**:
+
+1. **Deduplicación** — N requests concurrentes que reciben 401 comparten una sola llamada
+   en vuelo.
+2. **Cooldown** — la deduplicación sola no cubre una *secuencia* de 401s, porque la promesa
+   en vuelo se limpia en cuanto el intento se resuelve y cada 401 siguiente disparaba su
+   propio refresh.
+3. **Límite de intentos** — después de N fallos consecutivos se deja de pedir y se va a la
+   pantalla de acceso.
+
+La segunda es la que casi nunca se escribe, porque el problema solo aparece cuando los 401
+llegan en serie y no en paralelo.
+
+### La validación de permisos espera el estado de carga
+
+En una recarga completa el set de permisos está vacío mientras la verificación de sesión
+está en vuelo. Decidir sincrónicamente ahí manda a "sin acceso" a un usuario que **sí**
+tiene el permiso.
+
+La validación convierte el estado de carga en un flujo, espera el primer valor resuelto y
+recién entonces decide — con la garantía explícita de que tanto el camino de éxito como el
+de error lo resuelven, así que no hay espera infinita.
+
+### Caché HTTP que guarda la respuesta sin adaptar
+
+La clave es la URL y el valor la respuesta cruda, para que dos slices compartan un request
+y cada uno la mapee a su propia forma de dominio.
+
+El detalle fino: el manejo de error va **antes** del operador que comparte la respuesta, a
+propósito. La entrada se borra antes de que el error llegue al buffer compartido, así que un
+corte momentáneo de red no envenena el catálogo por el resto de la sesión.
+
+Y las entradas sobreviven al componente que las pidió, deliberadamente — con la nota
+documentada de que sería incorrecto para cualquier dato que se añeje solo. Resolvió un
+catálogo pedido desde siete lugares distintos, y uno pedido dos veces en la misma pantalla.
+
+### Validación asíncrona con fail-open razonado
+
+El validador de disponibilidad de código trata el "no encontrado" como disponible, y la
+respuesta afirmativa trae el identificador del conflicto para que el mensaje pueda apuntar
+al registro que lo ocupa. El debounce va **dentro** del validador, porque el framework
+desuscribe al cambiar el valor.
+
+Y cualquier fallo que no sea "no encontrado" se trata como válido, a propósito: el backend
+re-verifica dentro de la transacción, así que el peor caso es un error mapeado al envío del
+formulario — no una acusación falsa contra un código que sí estaba libre.
+
+## Aprendizaje
+
+La arquitectura correcta para un módulo de cierre de período era la incorrecta para un CRUD
+de catálogos. Reservar event sourcing para los agregados donde el historial inmutable es un
+requisito real, en lugar de aplicarlo como valor por defecto.
