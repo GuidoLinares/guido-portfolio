@@ -21,13 +21,13 @@ export function AboutSection({ content }: AboutSectionProps) {
         {/* self-start: sin eso el grid item se estira a la altura de la prosa.
             La caja fija el 4:5 y object-cover recorta: el original es cuadrado,
             así que se pierde el 20% de los costados, no altura. */}
-        <div className="photo-tint relative aspect-[4/5] w-[120px] self-start overflow-hidden rounded-md border border-hairline md:w-[180px]">
+        <div className="photo-tint aspect-[4/5] w-[120px] self-start overflow-hidden rounded-md border border-hairline md:w-[180px]">
           <Image
             src="/guido.jpg"
             alt="Guido Linares"
             width={180}
             height={225}
-            sizes="(min-width: 768px) 180px, 120px"
+            sizes="(max-width: 640px) 120px, 180px"
             className="h-full w-full object-cover"
           />
         </div>

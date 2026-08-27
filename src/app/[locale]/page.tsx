@@ -1,7 +1,9 @@
 import { Hero } from "@/components/hero/Hero";
 import { AboutSection } from "@/components/sections/AboutSection";
+import { AcademicSection } from "@/components/sections/AcademicSection";
 import { ContactSection } from "@/components/sections/ContactSection";
 import { DatabaseSection } from "@/components/sections/DatabaseSection";
+import { ProjectsSection } from "@/components/sections/ProjectsSection";
 import { StackSection } from "@/components/sections/StackSection";
 import { WorkCard } from "@/components/work/WorkCard";
 import { PROJECTS } from "@/content/projects";
@@ -19,6 +21,8 @@ export default async function HomePage({ params }: PageProps) {
   return (
     <div className="mx-auto w-full max-w-6xl px-6">
       <Hero hero={dictionary.hero} />
+
+      <AboutSection content={dictionary.about} />
 
       <section id="work" className="border-t border-hairline py-[var(--space-section)]">
         <h2 className="text-h2 text-text">{dictionary.nav.work}</h2>
@@ -39,11 +43,13 @@ export default async function HomePage({ params }: PageProps) {
         </ul>
       </section>
 
+      <ProjectsSection content={dictionary.projects} />
+
+      <AcademicSection content={dictionary.academic} />
+
       <DatabaseSection content={dictionary.database} />
 
       <StackSection content={dictionary.stack} />
-
-      <AboutSection content={dictionary.about} />
 
       <ContactSection content={dictionary.contact} />
     </div>

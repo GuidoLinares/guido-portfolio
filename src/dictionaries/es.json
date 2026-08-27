@@ -10,7 +10,7 @@
   },
   "hero": {
     "name": "Guido Linares",
-    "role": "Desarrollador full-stack",
+    "role": "Backend y bases de datos",
     "positioning": "Backend, base de datos y las decisiones que sostienen ambos.",
     "sequence": {
       "write": "write",
@@ -30,6 +30,73 @@
     "previous": "Anterior",
     "next": "Siguiente",
     "pagination": "Otros case studies"
+  },
+  "projects": {
+    "title": "Proyectos propios",
+    "lead": "Fuera del trabajo. Tres proyectos con problemas distintos.",
+    "items": [
+      {
+        "name": "agent-zoo",
+        "text": "Tres agentes sobre la API de Anthropic para automatizar tareas de un flujo de desarrollo: revisión de código y documentación como GitHub Actions sobre pull requests, más una auditoría por línea de comandos con streaming. Permisos de mínimo privilegio, truncado por capas y un solo comentario agregado por PR.",
+        "stack": [
+          "Python 3.12",
+          "Anthropic API",
+          "GitHub Actions",
+          "PyGithub"
+        ],
+        "link": "https://github.com/GuidoLinares/agent-zoo",
+        "linkLabel": "Código"
+      },
+      {
+        "name": "Sofitness",
+        "text": "Aplicación de seguimiento de entrenamientos y armado de rutinas, con generación de recetas asistida por IA. En producción, con usuarios reales de uso diario.",
+        "stack": [
+          "React 18",
+          "Vite",
+          "Firestore",
+          "Firebase Auth",
+          "Tailwind",
+          "Gemini",
+          "Hugging Face"
+        ],
+        "link": null,
+        "linkLabel": null
+      },
+      {
+        "name": "Amelia Complementos",
+        "text": "E-commerce de bijouterie y accesorios: catálogo, carrito y proceso de compra.",
+        "stack": [
+          "Next.js 16",
+          "React 19",
+          "TypeScript",
+          "Payload CMS",
+          "PostgreSQL (Supabase)",
+          "Drizzle",
+          "MercadoPago"
+        ],
+        "link": "https://ameliacomplementos.com",
+        "linkLabel": "Ver sitio"
+      }
+    ]
+  },
+  "academic": {
+    "title": "Académico",
+    "lead": "Trabajos de la carrera en Ingeniería Informática (UNLaM). Sistemas de bajo nivel en C.",
+    "linkLabel": "Código",
+    "items": [
+      {
+        "name": "Buscaminas",
+        "description": "interfaz gráfica con SDL2 y tablero configurable",
+        "tech": "C · SDL2",
+        "link": "https://github.com/GuidoLinares/C-Buscaminas-Topicos2025"
+      },
+      {
+        "name": "Game of Life",
+        "description": "autómata celular de Conway",
+        "tech": "C",
+        "link": "https://github.com/hozlucas28/C-Practical-Work-2024"
+      }
+    ]
   },
   "database": {
     "title": "Modelado y performance",

@@ -23,7 +23,7 @@ export const LOCALE_LABEL: Record<Locale, string> = {
 
 /** Formato que espera Open Graph para el locale. */
 export const OG_LOCALE: Record<Locale, string> = {
-  es: "es_AR",
+  es: "es",
   en: "en_US",
 };
 
