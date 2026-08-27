@@ -1,5 +1,4 @@
-import { Fragment } from "react";
-
+import { DotList } from "@/components/ui/DotList";
 import type { Dictionary } from "@/lib/i18n";
 
 type StackSectionProps = {
@@ -22,17 +21,7 @@ export function StackSection({ content }: StackSectionProps) {
             <h3 className="font-mono text-meta uppercase tracking-wider text-rail">
               {level.label}
             </h3>
-            {/* Cada entrada va en un span nowrap: la línea envuelve en los puntos
-                medios y no parte un nombre al medio —"AWS (ECS Fargate, S3, ECR)"
-                era el caso— sin meter espacios duros en el diccionario. */}
-            <p className="mt-3 font-mono text-meta text-rail">
-              {level.items.map((item, index) => (
-                <Fragment key={item}>
-                  {index > 0 ? " · " : null}
-                  <span className="whitespace-nowrap">{item}</span>
-                </Fragment>
-              ))}
-            </p>
+            <DotList items={level.items} className="mt-3 font-mono text-meta text-rail" />
           </div>
         ))}
       </div>

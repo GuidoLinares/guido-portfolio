@@ -110,28 +110,16 @@
   }
 }
 
-/* Tratamiento de la foto: baja la saturación al 70% y la corre hacia
-   --color-night con un overlay en modo `color`, que toma tono y saturación de la
-   capa de arriba y luminosidad de la de abajo. Así la foto convive con la paleta
-   sin decolorarse. Sin glow, sin sombra, sin borde de degradé.
+/* Tratamiento de la foto: apenas una desaturación para que no grite contra la
+   paleta, conservando los tonos de piel. Sin glow, sin sombra, sin borde de
+   degradé y sin overlay.
 
-   La opacidad del tinte es el único valor a ojo de este bloque: subila o bajala
-   para más o menos tinte. */
+   Acá había un overlay de --color-night en mix-blend-mode: color, y ese modo no
+   tiñe: reemplaza tono y saturación por los de la capa de arriba y solo conserva
+   la luminosidad de abajo, así que dejaba la foto casi en blanco y negro. */
 @utility photo-tint {
-  isolation: isolate;
-
   & img {
-    filter: saturate(0.7);
-  }
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-color: var(--color-night);
-    mix-blend-mode: color;
-    opacity: 0.22;
+    filter: saturate(0.95);
   }
 }
 
