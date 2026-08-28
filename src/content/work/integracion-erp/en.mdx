@@ -1,0 +1,181 @@
+---
+slug: "integracion-erp"
+title: "Accounting integration service"
+tagline: "Loading purchase documents between two systems, against an ERP that offers no transactions."
+company: "Grupo ROISA"
+scope: "Internal project"
+role: "End-to-end design and development"
+period: "Aug 2026 — present"
+status: "desarrollo"
+stack:
+  - "Python 3.12"
+  - "FastAPI"
+  - "Uvicorn"
+  - "Pydantic v2"
+  - "XML-RPC"
+  - "ECS Fargate"
+metrics:
+  - label: "endpoints"
+    value: "4"
+  - label: "ERP models"
+    value: "11"
+  - label: "external dependencies"
+    value: "6"
+  - label: "persistent state"
+    value: "0"
+order: 3
+---
+
+## Context
+
+A service that pulls purchase documents from a CRM and loads them into an accounting
+ERP, reconciling taxable bases, proportional tax, and withholdings. Always as a draft:
+confirmation stays human.
+
+## The constraint that shapes everything
+
+The ERP is reached over XML-RPC and **offers no transactions**. The journal entry is
+created and then adjusted across several steps, any of which can fail — or be reverted
+by the ERP's own recalculation. There is no atomicity available.
+
+Almost every decision in this service follows from that.
+
+## Decisions
+
+### Never trust the result of a write
+
+Withholdings are modeled in the ERP as fixed-amount taxes that enter with a placeholder
+value. Writing the balance of the proportional tax **triggers a recalculation of the
+entry that returns the withholdings to their placeholder**.
+
+The design: a forced order — proportional first, fixed amounts second — and a second
+pass that **reads the state back from the ERP** rather than assuming the write did what
+it asked. If the second pass still finds differences, it aborts.
+
+```python
+def _write_fixed_amounts():
+    """Forces the amount of each fixed-amount tax. Returns the ones that did
+    not land, read back from the ERP: it does not trust the write."""
+    lines = read_entry_lines(entry_id)
+    current = {x["tax_line_id"][0]: x for x in lines if x.get("tax_line_id")}
+    pending = []
+    for tax_id, amount in sorted(fixed_amounts.items()):
+        line = current.get(tax_id)
+        if not line:
+            raise RuntimeError(f"The ERP produced no line for tax {tax_id}")
+        if abs(line["balance"] - amount) > TOLERANCE:
+            write_balance(line["id"], amount)
+            pending.append((tax_id, amount))
+    return pending
+
+# The proportional tax goes FIRST: its write triggers the recalculation that
+# overwrites the fixed ones. Then we verify by reading back, and retry once.
+if fixed_amounts:
+    _write_fixed_amounts()
+    if _write_fixed_amounts():
+        raise RuntimeError("The ERP keeps reverting the amounts: review the entry.")
+```
+
+The cycle closes with a final check: every line is read back and verified so that the
+sum of balances is zero and the ERP total matches the expected total within tolerance.
+**The system never takes its own write for granted.**
+
+### Explicit compensation instead of faked atomicity
+
+With no transaction available, the honest alternative is to compensate. All
+post-processing runs inside a block whose error path **deletes the journal entry that
+was just created** and marks the record as reverted. State ends up exactly as it was
+before the attempt, and a retry starts from scratch.
+
+Two refinements make the difference:
+
+- If the compensating delete **also** fails, the state moves to a distinct, explicit
+  value rather than a generic failure. Someone has to look at it, and the system says so.
+- **A deliberate exception to the rule:** the attachment cannot bring down the load. The
+  document is already accounting-correct and the file is a convenience, so it degrades
+  to attaching the link instead.
+
+Telling apart which failure may degrade from which one must revert is the part that
+takes judgment, and it cannot be solved generically.
+
+### Fail-closed across the whole configuration
+
+A resolution step runs **before** any load and accumulates every problem into a list
+instead of failing on the first one: missing or archived taxes, taxes belonging to
+another company, an ambiguous journal, an archived product, a missing allocation plan.
+The operator gets the full list, not one error at a time.
+
+And the central rule: **a pipeline with no configured profile never falls back to a
+default value**. Posting a document with another pipeline's configuration is worse than
+not posting it at all. Accounting rules are not inherited by omission even when that
+means repeating them, because silently inheriting something that decides which account
+the money lands in is exactly how documents get posted wrong without anyone noticing.
+
+Four reinforcements:
+
+- **The pipeline is determined by the source record, not by the caller.** Nobody can
+  send the wrong one, by mistake or on purpose.
+- **A structural test validates in CI that every profile declares the mandatory
+  accounting keys.** If someone adds a pipeline and forgets one, the gate fails instead
+  of the service assuming a value.
+- **An incomplete profile declares its reason** and rejects its records with an
+  actionable message, until the source is fixed.
+- **Tax rates are never assumed.** An unknown value is an error, not a default.
+
+### Idempotency in three layers
+
+1. **In-batch deduplication** by tax identifier and document number, before touching
+   anything.
+2. **Detection of a previous load in the ERP**, filtered by type, company, supplier,
+   document type, and number. The complete filter matters: the document number belongs
+   to the issuer's own numbering, so filtering by number alone would skip legitimate
+   documents from other suppliers.
+3. **Bounded retry with verification**: two passes at most, each one reading the real
+   state back from the ERP.
+
+Combined with compensated failure, a webhook retry is harmless.
+
+### Attachment URLs are external data
+
+Download URLs arrive from the CRM, which makes them untrusted input. The policy is
+centralized in one module:
+
+- HTTPS only, with the host on an allowlist.
+- DNS is resolved and anything pointing at a private, loopback, link-local, reserved, or
+  multicast range is rejected — including the cloud provider's metadata endpoint, which
+  in a managed container hands out the execution role's credentials.
+- **A custom HTTP client with no redirect handling**, because a redirect can lead to an
+  internal target that the initial validation already approved.
+- Content is validated by its signature bytes, not by the declared content type header.
+  If HTML arrives, the error message asks whether the resource requires authentication,
+  instead of failing opaquely.
+
+And one reverted, documented decision: the IP allowlist was removed from the code,
+because behind a load balancer the visible address is the balancer's and not the
+client's. It gave a false sense of defense; origin control moved to the network layer,
+where it actually works.
+
+### Minimal dependency surface
+
+No ORM, no database driver, no database of its own. No third-party HTTP client and no
+CRM SDK: the remote protocol and outbound requests use the standard library. **Six
+dependencies in total.**
+
+Less dependency surface is less attack and maintenance surface. In a service that writes
+accounting entries, that trade-off closes easily.
+
+### Architecture
+
+Ports and adapters. The core — amount parsing with check-digit validation, and
+reconciliation of bases plus proportional tax plus withholdings against the total —
+imports nothing from the outside and performs no I/O.
+
+Three entry points converge on the same use case: command line, spreadsheet upload, and
+a JSON contract. And that contract uses business names, not the CRM's: the day the
+source system changes, what changes is whatever feeds the JSON, not the service.
+
+## Takeaway
+
+When the target system offers no atomicity, the answer is not to simulate it. It is to
+design compensation as a first-class path, and to state explicitly which failures may
+degrade and which ones must revert.

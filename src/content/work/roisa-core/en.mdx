@@ -1,0 +1,253 @@
+---
+slug: "roisa-core"
+title: "Coverage management platform"
+tagline: "Rewriting a microservices backend into a modular monolith, in production in ten weeks."
+company: "Grupo ROISA"
+scope: "Internal project"
+role: "Backend development, data modeling, and architecture decisions"
+period: "Jun 2026 — present"
+status: "produccion"
+stack:
+  - "NestJS 11"
+  - "TypeScript 5.9"
+  - "Prisma 7"
+  - "PostgreSQL"
+  - "Angular 21"
+  - "Redis"
+  - "BullMQ"
+  - "ECS Fargate"
+metrics:
+  - label: "endpoints"
+    value: "329"
+  - label: "with declared permission"
+    value: "97.9%"
+  - label: "data models"
+    value: "62"
+  - label: "weeks to production"
+    value: "10"
+order: 1
+---
+
+## Context
+
+REST backend and web client for the end-to-end management of a coverage platform:
+members, network entities, service catalog, contracts, plans, and the authorized
+directory. It replaces a legacy system of more than 1,300 tables and 5,000 stored
+procedures, with a target scale of 500,000 users.
+
+## Constraints
+
+The legacy system stays in production and cannot be switched off during the transition.
+Eligibility rules vary by contract, so domain logic changes often and needs to be
+testable in isolation. And the business deadline was short.
+
+## Two acts
+
+### Act I — Microservices in Go
+
+The first iteration was built as a polyrepo of Go services under strict hexagonal
+architecture: gRPC and Protobuf for internal communication, event sourcing with commands
+and handlers, Redis as a caching layer, and an intermediate BFF translating gRPC to REST
+for the frontend.
+
+That is where I learned what I use every day: concurrency with channels, versioned
+contracts with Protobuf, and ports-and-adapters discipline without shortcuts.
+
+The problem showed up measured: **the cost of development per feature did not scale
+downward**. A catalog CRUD demanded the same ceremonial infrastructure as a
+period-closing process — aggregate, commands, handlers, events, cache invalidation. We
+were paying the price of a large-scale architecture on features that did not need it.
+
+<ActoI locale="en" />
+
+### Act II — Rewritten as a modular monolith
+
+The decision was to **reduce architectural complexity rather than change language**. Not
+an incremental migration: a new repository, hexagonal and DDD preserved, and event
+sourcing reserved solely for the aggregates where an immutable history is a real domain
+requirement.
+
+Three concrete consequences:
+
+- **One language end to end.** The client was already TypeScript. Unifying it removes
+  context switching and duplicated contracts between layers.
+- **The BFF was removed entirely.** It existed only to adapt gRPC for the browser.
+  Without gRPC, the layer had no reason to exist: an entire piece of infrastructure gone
+  from the diagram.
+- **Versioned migrations and schema-typed data access**, instead of building the
+  persistence layer by hand.
+
+**The trade-off, stated:** independent per-service scaling is given up. That is
+acceptable because the real load did not justify it, and the boundaries remain real —
+there are 51 defined ports, so extracting a module tomorrow means implementing an
+adapter, not redesigning the system.
+
+Ten weeks later: 329 endpoints in production.
+
+<ActoII locale="en" />
+
+## Decisions
+
+### The permission catalog is discovered from the code, not maintained by hand
+
+On application startup, the framework's handler registry is walked, each handler's
+permission metadata is read alongside its route and method, the full path is
+reconstructed, and the permission is upserted into the database.
+
+The non-obvious half is the other one: **active permissions in the database are compared
+against the discovered set, and the ones no longer present in the code are deactivated.**
+Without that, renaming a resource leaves orphan permissions still granting access, and
+adding an endpoint requires remembering a manual insert.
+
+That it works was proven in production: when an entire module was renamed, its six
+previous permissions deactivated themselves.
+
+Two design details go with it. The sync is idempotent and **fault-tolerant** — a problem
+in the catalog must not stop the application from booting. And it is switchable by
+configuration, which allows scaling to N instances without all of them doing the same
+work.
+
+Result: 322 of 329 endpoints with a declared permission, across 48 distinct resources.
+
+### Idempotency by content hash and atomic claim
+
+The key of an export job is not a generated identifier: it is the hash of the view, the
+format, the source identifier, and its version. Two identical requests collapse onto the
+same key and the second one returns the first one's job instead of enqueueing a duplicate.
+
+The version inside the key is the fine part: it **invalidates the cache automatically
+when the source changes**, with no explicit purge required.
+
+And enqueueing is not decided by reading and then writing. The claim is a single atomic
+operation in the store: only the winner enqueues, and the loser reads back and reports
+the winner's progress. The race is impossible even with several instances running in
+parallel, **with no distributed locks and no job table**.
+
+### The transaction travels through the ports
+
+Creating a network entity is six chained writes inside one transaction, with the
+invariant written into the code: no orphan record may survive a failure.
+
+Three things that are not obvious:
+
+- **The transaction client is propagated as an optional parameter through the ports.**
+  Without that, validations would read with the shared client and would not see the
+  uncommitted rows of their own transaction. The parameter is purely additive: omitting it
+  preserves the previous behavior.
+- **Catalog reads stay outside the transaction.** An invalid type code should not cost an
+  open transaction.
+- **A calculated timeout, not the default.** These are roughly fifteen sequential round
+  trips against a remote database: the ORM's default five seconds would make a perfectly
+  valid creation return an intermittent error.
+
+And the code documents that the order of validations is an **optimization, not a
+correctness mechanism** — a validation that fails late aborts the transaction all the
+same, so a conflict caught at the end is as safe as one caught at the start.
+
+### Error codes derived from the class name
+
+Every domain error is its own class: 111 of them. The filter derives a stable code from
+the class name, instead of maintaining 111 constants that inevitably drift.
+
+Two safeguards make the technique safe:
+
+- The response carries a specific identifier **and** a family (conflict, not found,
+  validation), so a client can branch by category without knowing every member of the set.
+- The derivation is validated against a pattern before being returned, **because the
+  technique depends on the compiler not mangling class names**. If a bundler with
+  minification ever enters the pipeline, the client receives an unknown code instead of a
+  garbage identifier that could never match.
+
+The technical message is explicitly declared as not intended for display: the client owns
+every string an operator reads, so a new backend error cannot leak untranslated text into
+the interface.
+
+### Partial uniqueness the ORM cannot express
+
+With soft delete on 58 of 62 models, a normal uniqueness constraint burns the code of a
+deleted row forever.
+
+The solution is eleven partial unique indexes written by hand in SQL, conditioned on the
+deletion column. What is interesting is the accepted cost: those indexes are not
+representable in the ORM's schema, so its development command reports drift and offers to
+reset the database.
+
+**The answer was not to abandon the indexes but to forbid the command.** Only the deploy
+command is used, executed by the container's entrypoint, which aborts startup if it fails.
+
+### Nothing crosses modules through the database
+
+When a module needs data from another, it defines its own port and implements an adapter
+that talks to the other module's service. **No module reaches into another domain's
+tables.** That is what makes the boundaries real rather than decorative, and it is why
+extracting a module remains possible.
+
+## Web client
+
+An Angular SPA with standalone components and **no zone.js**, state through signals,
+strict typing with template checking. Architecture by vertical slices: eleven domains,
+every route lazily loaded, and pages never speak HTTP — each slice exposes its services
+as the only boundary and returns models from its own domain.
+
+Isolation is enforced by the compiler, not by convention: test helpers live under an
+alias declared only in the spec configuration, and the application configuration
+overrides the paths omitting it. **Production code cannot resolve a test helper** — not
+because it is forbidden, but because it does not compile.
+
+### Sessions with no token on the client
+
+Tokens live exclusively as HttpOnly cookies. The interceptor only declares credential
+sending and orchestrates the retry: the client never touches or stores a token.
+
+Refresh is centralized behind **three stacked guards, each solving a different problem**:
+
+1. **Deduplication** — N concurrent requests receiving a 401 share a single in-flight
+   call.
+2. **Cooldown** — deduplication alone does not cover a *sequence* of 401s, because the
+   in-flight promise clears as soon as the attempt settles and every subsequent 401 fired
+   its own refresh.
+3. **Attempt limit** — after N consecutive failures it stops asking and goes to the sign-in
+   screen.
+
+The second one is the guard almost nobody writes, because the problem only appears when
+the 401s arrive in series rather than in parallel.
+
+### Permission checking waits for the loading state
+
+On a full reload, the permission set is empty while the session check is in flight.
+Deciding synchronously there sends a user who **does** have the permission to a
+no-access page.
+
+The check turns the loading state into a stream, waits for the first resolved value, and
+only then decides — with the explicit guarantee that both the success and the error paths
+resolve it, so there is no infinite wait.
+
+### An HTTP cache that stores the unmapped response
+
+The key is the URL and the value is the raw response, so two slices share one request and
+each maps it to its own domain shape.
+
+The fine detail: error handling goes **before** the operator that shares the response, on
+purpose. The entry is removed before the error reaches the shared buffer, so a momentary
+network drop does not poison the catalog for the rest of the session.
+
+And entries deliberately outlive the component that requested them — with the documented
+note that this would be wrong for any data that goes stale on its own. It resolved a
+catalog requested from seven different places, and one requested twice on the same screen.
+
+### Async validation with reasoned fail-open
+
+The code-availability validator treats "not found" as available, and the affirmative
+response carries the identifier of the conflict so the message can point at the record
+occupying it. The debounce goes **inside** the validator, because the framework
+unsubscribes when the value changes.
+
+And any failure other than "not found" is treated as valid, on purpose: the backend
+re-checks inside the transaction, so the worst case is an error mapped to form submission
+— not a false accusation against a code that was in fact free.
+
+## Takeaway
+
+The right architecture for a period-closing module was the wrong one for a catalog CRUD.
+Reserve event sourcing for the aggregates where an immutable history is a real
+requirement, instead of applying it as the default.

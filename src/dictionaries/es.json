@@ -31,6 +31,20 @@
     "next": "Siguiente",
     "pagination": "Otros case studies"
   },
+  "diagrams": {
+    "topology": {
+      "client": "Cliente web",
+      "intermediateLayer": "Capa intermedia",
+      "internalProtocol": "comunicación binaria interna",
+      "service": "Servicio",
+      "database": "Base de datos",
+      "cache": "Caché",
+      "modularApp": "Aplicación modular",
+      "module": "Módulo",
+      "actIAlt": "Topología del Acto I: el cliente web habla por REST con una capa intermedia, que se comunica con tres servicios por un protocolo binario interno, y esos servicios acceden a la base de datos y a la caché.",
+      "actIIAlt": "Topología del Acto II: el cliente web habla por REST con una única aplicación modular, dividida internamente en módulos, que accede directamente a la base de datos; ya no hay capa intermedia."
+    }
+  },
   "projects": {
     "title": "Proyectos propios",
     "lead": "Fuera del trabajo. Tres proyectos con problemas distintos.",

@@ -1,0 +1,155 @@
+---
+slug: "procesos-masivos"
+title: "Bulk loads with assisted diagnostics"
+tagline: "Twelve batch-load processes against an ERP with no rollback, plus an assistant that explains failures in operational language."
+company: "Grupo ROISA"
+scope: "Internal project"
+role: "End-to-end design and development"
+period: "Mar 2026 — present"
+status: "produccion"
+stack:
+  - "Next.js 16"
+  - "React 19"
+  - "TypeScript"
+  - "SQL Server"
+  - "Zod"
+  - "Claude API"
+  - "Docker"
+metrics:
+  - label: "domain processes"
+    value: "12"
+  - label: "server actions"
+    value: "37"
+  - label: "lines of TypeScript"
+    value: "21,100"
+  - label: "commits in 5 months"
+    value: "170"
+order: 2
+---
+
+## Context
+
+An internal bulk-load application. An operator uploads a spreadsheet, the system
+validates it against the database catalogs, and executes an ERP's stored procedures in
+batches. Twelve different processes across catalogs, contracts, and member bases.
+
+## Constraints that shaped the design
+
+- **The ERP cannot be modified.** Its stored procedures are the only entry point and they
+  accept no signature changes.
+- **There is no operational rollback.** What lands in the database has landed.
+- No queues, no workers: a load balancer with a sixty-second timeout in front of a single
+  instance.
+- The operators are not technical. An untranslated database error is a support ticket.
+
+## Decisions
+
+### The code counts, the model only explains
+
+The obvious way to use a language model here would be to hand it the error log and ask
+for a summary. That is expensive and it hallucinates counts.
+
+The design inverts the order. Errors from all twelve processes are flattened into a
+canonical shape, given a signature by replacing every numeric sequence with a marker, and
+grouped by type, sheet, field, and signature. **Five thousand rows with the same error
+become one group with a count.**
+
+The consequence is the important part: **the payload scales with the number of distinct
+causes — typically fewer than fifteen — not with the number of rows.** A spreadsheet with
+five thousand malformed rows costs the same as one with fifty.
+
+Four controls on the output:
+
+- **Structured output against a schema.** The prompt explicitly forbids producing
+  numbers: the code already has the counts.
+- **Deterministic validation against hallucinated references.** On the way back, any
+  explanation whose group identifier was not among those sent is discarded.
+- **Personal data masked before the prompt.** Identifiers keep their last digits and the
+  rest is replaced. Valid records never leave the browser.
+- **If any group exceeded the cap, the aggregate count travels with it**, so the
+  diagnosis cannot lie by omission.
+
+The prompt forbids technical jargon and translates through concrete mappings: a foreign
+key violation becomes "the plan you specified does not exist for this entity". The field
+to correct points at the spreadsheet column, not the table. And it produces a paragraph
+ready to forward to whoever prepared the file, with per-cause counts.
+
+**Failure posture:** the assistant is a bonus, never a blocker. With no credential, on
+timeout, or on rate limit, the function does not throw — it returns a controlled failure,
+logs the technical error, and the load continues untouched.
+
+**Provider isolation:** a single file imports the SDK and exposes a generic
+structured-generation signature. Switching providers touches one file.
+
+### Per-row savepoint with partial commit
+
+A spreadsheet of five thousand rows with three bad rows has two obvious solutions, and
+both are bad: an atomic transaction per batch (three rows take down five thousand) or
+autocommit per row (all atomicity is lost).
+
+The implementation opens one transaction per batch and issues a savepoint before each
+row. If the procedure fails, only that row is rolled back and the batch continues. On
+close, it commits if there was at least one success.
+
+The detail you only learn in production: **the rollback to the savepoint is wrapped in
+its own error handling.** If the failure doomed the entire transaction — which the engine
+does in certain cases — the partial rollback fails too, and there it degrades to the
+global rollback instead of propagating the exception.
+
+The result: row-level atomicity with batch grouping, and errors reported against the row
+number of the original spreadsheet.
+
+```ts
+// The savepoint name is built from the iterator index, never from input
+// data: there is no injection surface here.
+const savepoint = `sp_row_${index}`;
+await new sql.Request(transaction).query(`SAVE TRANSACTION ${savepoint}`);
+try {
+  const request = new sql.Request(transaction);
+  mapParameters(record, request);
+  await request.execute(procedureName);
+  result.succeeded++;
+} catch (error) {
+  try {
+    await new sql.Request(transaction).query(`ROLLBACK TRANSACTION ${savepoint}`);
+  } catch {
+    // Unrecoverable transaction: the global close reverts it.
+  }
+  result.failed++;
+  result.errors.push({ row: index + 1, error: (error as Error).message });
+}
+```
+
+### Chunking lives on the client
+
+With no job queue and a load balancer that cuts off at sixty seconds, the browser splits
+the file and calls the server N times.
+
+Batch size is chosen **by the cost of the stored procedure**: ten when it does expensive
+synchronous work, fifty when the ceiling is the timeout, two hundred as the standard, and
+five thousand when the whole batch fits into a table-valued parameter and becomes a
+single execution.
+
+Each batch is a short, independent request: progress is observable and a failed batch
+does not drag the rest down with it.
+
+**The trade-off:** chunking logic sits in the presentation layer, and every new process
+has to declare its own size. It was accepted because the alternative — introducing a
+queue and its infrastructure — was not justified by the real volume.
+
+### Dates by UTC components on both sides
+
+The driver returns short-form dates as values whose UTC components are the stored data.
+The spreadsheet parser returns UTC midnight for serial values, but **local** midnight for
+the day-month-year format. Mixing them produces a one-day shift.
+
+The rule was codified and documented: extract year, month, and day in UTC on both sides
+when comparing, and normalize to exact UTC midnight when inserting dates that form part
+of a key, so that the upsert updates instead of duplicating.
+
+## Takeaway
+
+When a language model enters a data flow, the useful question is not what it can generate
+but **what it must not generate**. Keeping the counts on the deterministic side and
+limiting the model to the explanatory layer made the diagnosis cheaper, faster, and above
+all trustworthy.
