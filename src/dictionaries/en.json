@@ -1,15 +1,4 @@
 {
-  "_pendingTranslation": {
-    "note": "PENDIENTE DE TRADUCCIÓN: las secciones listadas abajo están duplicadas del español, no traducidas.",
-    "sections": [
-      "database",
-      "stack",
-      "about",
-      "contact",
-      "projects",
-      "academic"
-    ]
-  },
   "nav": {
     "brand": "Guido Linares",
     "skipToContent": "Skip to content",
@@ -22,7 +11,7 @@
   "hero": {
     "name": "Guido Linares",
     "role": "Backend and databases",
-    "positioning": "Backend, databases, and the decisions that carry both.",
+    "positioning": "Backend, databases, and the decisions that hold both together.",
     "sequence": {
       "write": "write",
       "readBack": "read back",
@@ -42,13 +31,27 @@
     "next": "Next",
     "pagination": "Other case studies"
   },
+  "diagrams": {
+    "topology": {
+      "client": "Web client",
+      "intermediateLayer": "Intermediate layer",
+      "internalProtocol": "internal binary protocol",
+      "service": "Service",
+      "database": "Database",
+      "cache": "Cache",
+      "modularApp": "Modular application",
+      "module": "Module",
+      "actIAlt": "Act I topology: the web client talks over REST to an intermediate layer, which communicates with three services over an internal binary protocol, and those services reach the database and the cache.",
+      "actIIAlt": "Act II topology: the web client talks over REST to a single modular application, internally divided into modules, that reaches the database directly; the intermediate layer is gone."
+    }
+  },
   "projects": {
-    "title": "Proyectos propios",
-    "lead": "Fuera del trabajo. Tres proyectos con problemas distintos.",
+    "title": "Personal projects",
+    "lead": "Outside of work. Three projects, three different problems.",
     "items": [
       {
         "name": "agent-zoo",
-        "text": "Tres agentes sobre la API de Anthropic para automatizar tareas de un flujo de desarrollo: revisión de código y documentación como GitHub Actions sobre pull requests, más una auditoría por línea de comandos con streaming. Permisos de mínimo privilegio, truncado por capas y un solo comentario agregado por PR.",
+        "text": "Three agents built on the Anthropic API to automate development-workflow tasks: code review and documentation as GitHub Actions on pull requests, plus a command-line audit with streaming output. Least-privilege permissions, layered truncation, and a single aggregated comment per PR.",
         "stack": [
           "Python 3.12",
           "Anthropic API",
@@ -56,11 +59,11 @@
           "PyGithub"
         ],
         "link": "https://github.com/GuidoLinares/agent-zoo",
-        "linkLabel": "Código"
+        "linkLabel": "Code"
       },
       {
         "name": "Sofitness",
-        "text": "Aplicación de seguimiento de entrenamientos y armado de rutinas, con generación de recetas asistida por IA. En producción, con usuarios reales de uso diario.",
+        "text": "Workout tracking and routine builder, with AI-assisted recipe generation. In production, with real users on a daily basis.",
         "stack": [
           "React 18",
           "Vite",
@@ -75,7 +78,7 @@
       },
       {
         "name": "Amelia Complementos",
-        "text": "E-commerce de bijouterie y accesorios: catálogo, carrito y proceso de compra.",
+        "text": "Jewelry and accessories e-commerce: catalog, cart, and checkout flow.",
         "stack": [
           "Next.js 16",
           "React 19",
@@ -86,48 +89,48 @@
           "MercadoPago"
         ],
         "link": "https://ameliacomplementos.com",
-        "linkLabel": "Ver sitio"
+        "linkLabel": "Visit site"
       }
     ]
   },
   "academic": {
-    "title": "Académico",
-    "lead": "Trabajos de la carrera en Ingeniería Informática (UNLaM). Sistemas de bajo nivel en C.",
-    "linkLabel": "Código",
+    "title": "Academic",
+    "lead": "Coursework from my Computer Engineering degree (UNLaM). Low-level systems in C.",
+    "linkLabel": "Code",
     "items": [
       {
-        "name": "Buscaminas",
-        "description": "interfaz gráfica con SDL2 y tablero configurable",
+        "name": "Minesweeper",
+        "description": "graphical interface with SDL2 and a configurable board",
         "tech": "C · SDL2",
         "link": "https://github.com/GuidoLinares/C-Buscaminas-Topicos2025"
       },
       {
         "name": "Game of Life",
-        "description": "autómata celular de Conway",
+        "description": "Conway's cellular automaton",
         "tech": "C",
         "link": "https://github.com/hozlucas28/C-Practical-Work-2024"
       }
     ]
   },
   "database": {
-    "title": "Modelado y performance",
-    "lead": "Dos motores, dos problemas distintos: diseñar un modelo que soporte reglas que cambian, y diagnosticar uno que ya está en producción.",
+    "title": "Modeling and performance",
+    "lead": "Two engines, two different problems: designing a model that can absorb changing rules, and diagnosing one that is already in production.",
     "columns": [
       {
-        "title": "PostgreSQL · modelado",
+        "title": "PostgreSQL · modeling",
         "items": [
-          "Definición de schemas, constraints e integridad referencial sobre un modelo de 62 entidades con borrado lógico.",
-          "Índices únicos parciales escritos a mano cuando el ORM no puede expresarlos.",
-          "Transacciones multi-entidad con propagación explícita del cliente a través de los ports, y timeouts calculados según el número real de round trips."
+          "Schema definition, constraints, and referential integrity across a 62-entity model with soft delete.",
+          "Partial unique indexes written by hand where the ORM cannot express them.",
+          "Multi-entity transactions with the client propagated explicitly through the ports, and timeouts calculated from the real number of round trips."
         ]
       },
       {
-        "title": "SQL Server · diagnóstico",
+        "title": "SQL Server · diagnostics",
         "items": [
-          "Análisis de cadenas de bloqueo en producción y su causa raíz: transacciones abiertas por sesiones inactivas.",
-          "Anti-patrones de generación de identificadores que serializan la escritura.",
-          "Predicados que fuerzan recorrido completo de tabla y multiplican el alcance de los bloqueos.",
-          "Ingeniería inversa y modelado de entidades sobre un sistema legacy de más de 1.300 tablas y 5.000 procedimientos almacenados."
+          "Analysis of blocking chains in production and their root cause: transactions left open by idle sessions.",
+          "Identifier-generation anti-patterns that serialize writes.",
+          "Predicates that force full table scans and widen the scope of locks.",
+          "Reverse engineering and entity modeling over a legacy system of more than 1,300 tables and 5,000 stored procedures."
         ]
       }
     ]
@@ -136,7 +139,7 @@
     "title": "Stack",
     "levels": [
       {
-        "label": "Todos los días",
+        "label": "Every day",
         "items": [
           "TypeScript",
           "NestJS",
@@ -150,14 +153,14 @@
         ]
       },
       {
-        "label": "En producción",
+        "label": "In production",
         "items": [
           "Python",
           "FastAPI",
           "Uvicorn",
           "Pandas",
           "Odoo (XML-RPC)",
-          "Arquitectura hexagonal",
+          "Hexagonal architecture",
           "DDD",
           "Redis",
           "Docker",
@@ -167,7 +170,7 @@
         ]
       },
       {
-        "label": "Explorado a fondo",
+        "label": "Explored in depth",
         "items": [
           "Go",
           "gRPC",
@@ -175,38 +178,38 @@
           "Event sourcing",
           "NATS",
           "Asynq",
-          "Concurrencia con channels",
+          "Concurrency with channels",
           "Event-driven"
         ]
       }
     ],
     "notes": [
-      "Integración con ERPs de terceros: automatización de comunicación entre portales y aplicaciones externas contra Odoo, vía XML-RPC.",
-      "Los niveles reflejan uso real, no familiaridad. Lo del tercer nivel lo construí y lo dejé de usar por decisión de arquitectura, no por falta de manejo."
+      "Third-party ERP integration: automating communication between external portals and applications against Odoo, over XML-RPC.",
+      "These levels reflect actual use, not familiarity. What is in the third level I built and then stopped using because of an architectural decision, not for lack of command over it."
     ]
   },
   "about": {
-    "title": "Sobre mí",
+    "title": "About",
     "paragraphs": [
-      "Trabajo en el diseño y desarrollo de sistemas internos en Grupo ROISA, una organización con operación a escala en Buenos Aires. Mi trabajo va del backend a la base de datos: APIs en NestJS, procesos de carga masiva contra SQL Server, servicios de integración en Python, y el modelado de datos de la plataforma que reemplaza al sistema legacy de la empresa.",
-      "Estudio Ingeniería Informática en la Universidad Nacional de La Matanza, tercer año. Antes de esto me formé como técnico aeronáutico. Suena desconectado, pero en mantenimiento de aeronaves aprendí algo que uso todos los días: los procedimientos existen porque la falla es cara y no se deshace. Trabajar contra una base de producción sin rollback se parece más a eso de lo que parece.",
-      "Lo que me interesa del oficio es la parte que no se ve en una demo: por qué una transacción está delimitada donde está, qué pasa cuando el sistema de destino no ofrece atomicidad, y qué se resigna al elegir una arquitectura sobre otra."
+      "I work on the design and development of internal systems at Grupo ROISA, an organization operating at scale in Buenos Aires. My work runs from the backend down to the database: APIs in NestJS, bulk-load processes against SQL Server, integration services in Python, and the data modeling of the platform replacing the company's legacy system.",
+      "I am studying Computer Engineering at Universidad Nacional de La Matanza, third year. Before that I trained as an aircraft maintenance technician. It sounds unrelated, but aircraft maintenance taught me something I use every day: procedures exist because failure is expensive and cannot be undone. Working against a production database with no rollback resembles that more than you would expect.",
+      "What interests me about this craft is the part a demo never shows: why a transaction boundary sits where it sits, what happens when the target system offers no atomicity, and what you give up when you choose one architecture over another."
     ],
     "facts": [
       "Buenos Aires, Argentina",
-      "Ing. Informática (UNLaM)",
-      "Español nativo",
-      "Inglés C1"
+      "Computer Engineering (UNLaM)",
+      "Spanish (native)",
+      "English (C1)"
     ]
   },
   "contact": {
-    "title": "Contacto",
-    "lead": "Abierto a posiciones full-time y a consultoría en performance de base de datos.",
-    "copy": "Copiar",
-    "copied": "Copiado",
-    "copyHint": "Copiar el email al portapapeles",
+    "title": "Contact",
+    "lead": "Open to full-time roles and to database performance consulting.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyHint": "Copy email address to clipboard",
     "github": "GitHub",
     "linkedin": "LinkedIn",
-    "cv": "Descargar CV"
+    "cv": "Download CV"
   }
 }

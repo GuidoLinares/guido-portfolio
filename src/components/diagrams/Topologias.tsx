@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, getDictionary, isLocale } from "@/lib/i18n";
+
 /**
  * Topologías del Acto I y el Acto II de roisa-core.
  *
@@ -8,6 +10,9 @@
  *
  * SVG inline: hereda los tokens por clases (stroke-rail, fill-text, text-meta) y
  * escala sin pérdida. Tres colores y nada más.
+ *
+ * Las etiquetas —incluida la descripción accesible— salen del diccionario: el
+ * MDX que renderiza el par pasa su locale como prop.
  */
 
 /** Ancho del viewBox. Fija la escala de los dos diagramas. */
@@ -20,6 +25,17 @@ const LABEL_GAP = 9;
 
 const LABEL = "font-mono text-meta";
 const FRAME = "mt-6 w-full max-w-[420px]";
+
+/** El locale lo pasa el MDX que renderiza el diagrama. */
+type Diagrama = { locale: string };
+
+/**
+ * Etiquetas en el locale del MDX. Se valida en runtime porque un .mdx no lo
+ * hace en compilación: un valor inesperado cae al default en vez de romper.
+ */
+function etiquetas(locale: string) {
+  return getDictionary(isLocale(locale) ? locale : DEFAULT_LOCALE).diagrams.topology;
+}
 
 function Box({
   x,
@@ -133,7 +149,8 @@ function Bus({ y, from, to }: { y: number; from: number; to: number }) {
 const ROLES = ["A", "B", "C"] as const;
 
 /** Cliente → capa intermedia → tres servicios → base de datos y caché. */
-export function ActoI() {
+export function ActoI({ locale }: Diagrama) {
+  const t = etiquetas(locale);
   const columnas = [60, CENTER, 300];
   const servicioW = 104;
   const busServicios = 170;
@@ -145,16 +162,16 @@ export function ActoI() {
     <svg
       viewBox={`0 0 ${W} 310`}
       role="img"
-      aria-label="Topología del Acto I: el cliente web habla por REST con una capa intermedia, que se comunica con tres servicios por un protocolo binario interno, y esos servicios acceden a la base de datos y a la caché."
+      aria-label={t.actIAlt}
       className={FRAME}
     >
-      <Box x={110} y={0} w={140} label="Cliente web" />
+      <Box x={110} y={0} w={140} label={t.client} />
       <Link from={BOX_H} to={82} label="REST" />
 
       {/* La capa intermedia es la pieza que desaparece en el Acto II. */}
-      <Box x={90} y={82} w={180} label="Capa intermedia" tone="signal" />
+      <Box x={90} y={82} w={180} label={t.intermediateLayer} tone="signal" />
 
-      <Link from={116} to={busServicios} label="comunicación binaria interna" arrow={false} />
+      <Link from={116} to={busServicios} label={t.internalProtocol} arrow={false} />
       <Bus y={busServicios} from={columnas[0]} to={columnas[2]} />
 
       {columnas.map((x, index) => (
@@ -164,7 +181,7 @@ export function ActoI() {
             x={x - servicioW / 2}
             y={serviciosY}
             w={servicioW}
-            label={`Servicio ${ROLES[index]}`}
+            label={`${t.service} ${ROLES[index]}`}
           />
           <Link from={serviciosY + BOX_H} to={busStores} x={x} arrow={false} />
         </g>
@@ -173,16 +190,17 @@ export function ActoI() {
       <Bus y={busStores} from={columnas[0]} to={columnas[2]} />
 
       <Link from={busStores} to={storesY} x={110} />
-      <Box x={40} y={storesY} w={140} label="Base de datos" />
+      <Box x={40} y={storesY} w={140} label={t.database} />
 
       <Link from={busStores} to={storesY} x={250} />
-      <Box x={195} y={storesY} w={110} label="Caché" />
+      <Box x={195} y={storesY} w={110} label={t.cache} />
     </svg>
   );
 }
 
 /** Cliente → una sola aplicación modular → base de datos. Sin capa intermedia. */
-export function ActoII() {
+export function ActoII({ locale }: Diagrama) {
+  const t = etiquetas(locale);
   const appX = 20;
   const appW = 320;
   const appY = 92;
@@ -195,10 +213,10 @@ export function ActoII() {
     <svg
       viewBox={`0 0 ${W} 232`}
       role="img"
-      aria-label="Topología del Acto II: el cliente web habla por REST con una única aplicación modular, dividida internamente en módulos, que accede directamente a la base de datos; ya no hay capa intermedia."
+      aria-label={t.actIIAlt}
       className={FRAME}
     >
-      <Box x={110} y={0} w={140} label="Cliente web" />
+      <Box x={110} y={0} w={140} label={t.client} />
       <Link from={BOX_H} to={appY} label="REST" />
 
       {/* Una sola caja: los módulos son límites lógicos, no procesos, así que van
@@ -220,7 +238,7 @@ export function ActoII() {
         dominantBaseline="central"
         className={`${LABEL} fill-text`}
       >
-        Aplicación modular
+        {t.modularApp}
       </text>
 
       <Bus y={divisoria} from={appX} to={appX + appW} />
@@ -244,13 +262,13 @@ export function ActoII() {
             dominantBaseline="central"
             className={`${LABEL} fill-text`}
           >
-            {`Módulo ${rol}`}
+            {`${t.module} ${rol}`}
           </text>
         </g>
       ))}
 
       <Link from={appY + appH} to={dbY} />
-      <Box x={110} y={dbY} w={140} label="Base de datos" />
+      <Box x={110} y={dbY} w={140} label={t.database} />
     </svg>
   );
 }
