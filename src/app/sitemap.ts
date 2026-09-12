@@ -4,6 +4,7 @@ import type { MetadataRoute } from "next";
 
 import { PROJECTS } from "@/content/projects";
 import { SITE } from "@/content/site";
+import { STUDIO_LOCALE } from "@/content/studio";
 import { LOCALES, type Locale } from "@/lib/locales";
 import { hasWorkEntry, workEntryPath } from "@/lib/mdx";
 
@@ -41,5 +42,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     })),
   );
 
-  return [...home, ...work];
+  // La landing comercial existe solo en español —/en/studio redirige acá—, así
+  // que no lleva alternates multi-locale.
+  const studio = [
+    {
+      url: url(STUDIO_LOCALE, "studio"),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    },
+  ];
+
+  return [...home, ...work, ...studio];
 }
