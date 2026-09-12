@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, IBM_Plex_Mono, Public_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 
-import { LocaleToggle } from "@/components/ui/LocaleToggle";
-import { ScrollHairline } from "@/components/ui/ScrollHairline";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -104,19 +102,11 @@ export default async function LocaleLayout({
           {dictionary.nav.skipToContent}
         </a>
 
-        <ScrollHairline />
-
-        <header className="border-b border-hairline">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-5">
-            <span className="font-mono text-meta text-text">{dictionary.nav.brand}</span>
-            <LocaleToggle current={resolved} label={dictionary.nav.languageLabel} />
-          </div>
-        </header>
-
-        {/* tabIndex -1: sin esto el foco no aterriza acá al usar el skip link. */}
-        <main id="content" tabIndex={-1}>
-          {children}
-        </main>
+        {/* El chrome vive en cada cara, no acá: el portfolio lo pone
+            `(portfolio)/layout.tsx` y la landing comercial el suyo. Cada una es
+            dueña de su propio <main id="content">, que es adonde apunta el skip
+            link de arriba. */}
+        {children}
 
         <Analytics />
         <SpeedInsights />
