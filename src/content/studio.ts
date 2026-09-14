@@ -27,6 +27,19 @@ export type StudioService = {
   readonly detalle: string;
 };
 
+/**
+ * Captura del producto andando. `ancho` y `alto` son los píxeles reales del
+ * archivo: `next/image` los necesita para reservar el espacio antes de cargar,
+ * y de ellos sale también la orientación con la que la página decide si la
+ * muestra a ancho completo o chica.
+ */
+export type ImagenProyecto = {
+  readonly src: string;
+  readonly alt: string;
+  readonly ancho: number;
+  readonly alto: number;
+};
+
 export type StudioProject = {
   /** Primera parte del nombre, en peso ligero. */
   readonly nombre: string;
@@ -38,6 +51,8 @@ export type StudioProject = {
   readonly stack: readonly string[];
   readonly href?: string;
   readonly hrefTexto?: string;
+  /** Opcional: un proyecto puede entrar antes de tener capturas. */
+  readonly imagenes?: readonly ImagenProyecto[];
 };
 
 export type StudioStep = {
@@ -135,8 +150,23 @@ export const PROYECTOS: readonly StudioProject[] = [
     detalle:
       "Tienda de bijouterie. La dueña carga los productos desde el celular, el cliente compra y paga online, y los pedidos llegan ordenados.",
     stack: ["Next.js", "TypeScript", "Payload CMS", "PostgreSQL"],
-    href: "https://ameliacomplementos.com",
-    hrefTexto: "ameliacomplementos.com",
+    href: "https://amelia-complementos.vercel.app",
+    hrefTexto: "amelia-complementos.vercel.app",
+    // Capturadas a 1440x900 con deviceScaleFactor 2.
+    imagenes: [
+      {
+        src: "/studio/amelia-producto.png",
+        alt: "Ficha de producto con precio, stock y botón de compra",
+        ancho: 2880,
+        alto: 1800,
+      },
+      {
+        src: "/studio/amelia-home.png",
+        alt: "Portada de la tienda con las categorías de productos",
+        ancho: 2880,
+        alto: 1800,
+      },
+    ],
   },
   {
     nombre: "Sofitness",
@@ -144,6 +174,23 @@ export const PROYECTOS: readonly StudioProject[] = [
     detalle:
       "App de entrenamiento que se abre todos los días. Rutinas armadas, seguimiento de cargas y recetas generadas según el objetivo de cada persona.",
     stack: ["React", "Firebase", "Gemini"],
+    href: "https://www.sofittapp.com",
+    hrefTexto: "sofittapp.com",
+    // Capturadas a 390x844 con deviceScaleFactor 3: es una PWA de celular.
+    imagenes: [
+      {
+        src: "/studio/sofit-rutina.png",
+        alt: "Rutina del día con series, repeticiones y video del ejercicio",
+        ancho: 360,
+        alto: 782,
+      },
+      {
+        src: "/studio/sofit-recetas.png",
+        alt: "Libro de recetas con categorías y calorías por plato",
+        ancho: 1170,
+        alto: 2532,
+      },
+    ],
   },
 ];
 

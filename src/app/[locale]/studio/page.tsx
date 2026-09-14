@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -190,6 +191,38 @@ export default async function StudioPage({ params }: PageProps) {
                   >
                     {proyecto.hrefTexto ?? proyecto.href}
                   </a>
+                ) : null}
+
+                {/* Capturas del producto andando. La orientación sale del propio
+                    archivo: las de escritorio ocupan el ancho completo, las de
+                    celular quedan chicas y de a dos, para que ninguna se estire
+                    más allá de su tamaño real. */}
+                {proyecto.imagenes?.length ? (
+                  <ul className="mt-[var(--space-block)] flex flex-wrap items-start gap-4">
+                    {proyecto.imagenes.map((imagen) => {
+                      const vertical = imagen.alto > imagen.ancho;
+
+                      return (
+                        <li
+                          key={imagen.src}
+                          className={
+                            vertical
+                              ? "w-full max-w-[260px] sm:w-[calc(50%-0.5rem)]"
+                              : "w-full"
+                          }
+                        >
+                          <Image
+                            src={imagen.src}
+                            alt={imagen.alt}
+                            width={imagen.ancho}
+                            height={imagen.alto}
+                            sizes={vertical ? "260px" : "(min-width: 1024px) 768px, 100vw"}
+                            className="h-auto w-full rounded-md border border-hairline"
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
                 ) : null}
               </li>
             ))}
